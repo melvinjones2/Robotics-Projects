@@ -42,5 +42,9 @@ desktop.ini
 # ======================
 # JARs
 # ======================
+# Ignore all jars by default
 *.jar
-!lib/**/*.jar     # keep all jars in lib/** folders
+
+# Keep jars inside lib (any depth)
+!lib/**/*.jar
+!lib/*.jar
