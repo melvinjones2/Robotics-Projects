@@ -60,7 +60,7 @@ public class ClientMain {
             // ---- main loop: receive -> show -> auto-reply ----
             String line;
             while (running.get() && (line = in.readLine()) != null) {
-                String msg = (line == null) ? "" : line.trim();
+                String msg = line.trim();
 
                 // local exit
                 if (Button.ESCAPE.isDown()) {
