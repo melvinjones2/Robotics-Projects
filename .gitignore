@@ -23,7 +23,8 @@
 hs_err_pid*
 replay_pid*
 
-# Eclipse project files
+# Eclipse settings
+.metadata/
 .classpath
 .project
 .settings/
@@ -32,8 +33,8 @@ replay_pid*
 bin/
 target/
 
-# Other common IDE cruft
-*.iml
+# Common IDEs
 .idea/
+*.iml
 out/
 .vscode/
