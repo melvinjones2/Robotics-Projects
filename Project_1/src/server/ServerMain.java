@@ -70,6 +70,7 @@ public class ServerMain {
                     break;
                 }
             }
+            sc.close();
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
         } finally {
