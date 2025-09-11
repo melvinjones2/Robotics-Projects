@@ -62,15 +62,18 @@ public class ServerMain {
 
             // ---- interactive send loop ----
             Scanner sc = new Scanner(System.in);
-            while (running.get() && sc.hasNextLine()) {
-                String line = sc.nextLine();
-                send(out, line);
-                if ("BYE".equalsIgnoreCase(line.trim())) {
-                    running.set(false);
-                    break;
+            try {
+                while (running.get() && sc.hasNextLine()) {
+                    String line = sc.nextLine();
+                    send(out, line);
+                    if ("BYE".equalsIgnoreCase(line.trim())) {
+                        running.set(false);
+                        break;
+                    }
                 }
+            } finally {
+                sc.close();
             }
-            sc.close();
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
         } finally {
