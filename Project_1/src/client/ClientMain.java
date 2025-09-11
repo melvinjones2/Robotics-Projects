@@ -13,7 +13,7 @@ import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientMain {
-    private static final String SERVER_HOST = "10.0.1.8";
+    private static final String SERVER_HOST = "10.0.1.8"; // change this to your ip. Use ip config and look at the bluetooth one
     private static final int SERVER_PORT = 9999;
 
     // What the robot "says" back
