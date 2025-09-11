@@ -38,6 +38,9 @@ desktop.ini
 # ======================
 *.zip
 *.tar.gz
+
+# ======================
+# JARs
+# ======================
 *.jar
-!lib/**/*.jar
-!lib/*.jar
+!lib/**/*.jar     # keep all jars in lib/** folders
