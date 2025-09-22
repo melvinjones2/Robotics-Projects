@@ -56,6 +56,9 @@ public class ServerMain {
                             } else if (msg.startsWith("CONTROL:")) {
                                 System.out.println("[EV3][CONTROL] " + msg.substring(8).trim());
                                 // TODO: Add control-specific handling here
+                            } else if (msg.startsWith("MOTOR:")) {
+                                System.out.println("[EV3][MOTOR] " + msg.substring(8).trim());
+                                // TODO: Add control-specific handling here
                             } else {
                                 System.out.println("[EV3][UNKNOWN] " + msg);
                             }

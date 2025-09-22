@@ -18,11 +18,23 @@ public class CommandHandler implements IHandler {
     private volatile int batteryMonitorIntervalMs = 1000; // Default 1 second
     private java.util.Timer batteryMonitorTimer;
 
+    // Initialization step
+    private void init() {
+        String motorSummary = MotorDetector.getMotorSummary();
+        LCD.drawString(motorSummary, 0, 2);
+        try {
+            send(out, "MOTOR: " + motorSummary);
+        } catch (IOException e) {
+            LCD.drawString("Motor send err", 0, 6);
+        }
+    }
+
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
         this.in = in;
         this.out = out;
         this.running = running;
         this.replies = replies;
+        init();
         startBatteryMonitoring();
     }
 
