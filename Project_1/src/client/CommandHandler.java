@@ -54,23 +54,36 @@ public class CommandHandler implements IHandler {
                 if ("BEEP".equalsIgnoreCase(msg)) {
                     Sound.beep();
                     say("Beep!", true);
-                    // fall through to reply
+                } else if (msg.toUpperCase().startsWith("MOVE")) {
+                    // MOVE <speed>
+                    String[] parts = msg.split(" ");
+                    int speed = 200;
+                    if (parts.length > 1) {
+                        try { speed = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
+                    }
+                    MotorController.moveAllForward(speed);
+                    say("Motors moving at " + speed, false);
+                } else if (msg.toUpperCase().startsWith("STOP")) {
+                    MotorController.stopAll();
+                    say("Motors stopped", false);
                 } else if (msg.length() > 0) {
                     // Show the server's message
                     say(msg, false);
+                } else {
+                    // auto-reply with a rotating phrase
+                    String reply = replies[replyIndex];
+                    replyIndex = (replyIndex + 1) % replies.length;
+                    send(out, "REPLY: " + reply);
                 }
 
-                // auto-reply with a rotating phrase
-                String reply = replies[replyIndex];
-                replyIndex = (replyIndex + 1) % replies.length;
-                send(out, "REPLY: " + reply);
+
             }
         } catch (IOException e) {
             LCD.drawString("Net error", 0, 3);
             LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
             Sound.buzz();
         }
-            stopBatteryMonitoring();
+        stopBatteryMonitoring();
     }
 
     private void send(BufferedWriter out, String line) throws IOException {
