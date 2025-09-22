@@ -82,9 +82,21 @@ public class ClientMain {
             Sound.buzz();
         } finally {
             running.set(false);
-            try { if (in != null) in.close(); } catch (IOException ignored) {}
-            try { if (out != null) out.close(); } catch (IOException ignored) {}
-            try { if (sock != null) sock.close(); } catch (IOException ignored) {}
+            try { 
+            	if (in != null) in.close(); 
+        	} 
+            
+            catch (IOException ignored) {}
+            try {
+            	if (out != null) out.close(); 
+        	} 
+            catch (IOException ignored) {}
+            
+            try {
+            	if (sock != null) sock.close(); 
+        	} 
+            catch (IOException ignored) {}
+            
             LCD.clear();
             LCD.drawString("Disconnected", 0, 2);
             Button.ESCAPE.waitForPress();

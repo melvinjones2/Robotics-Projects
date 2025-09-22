@@ -46,7 +46,19 @@ public class ServerMain {
                         String line;
                         while (running.get() && (line = inRef.readLine()) != null) {
                             String msg = line.trim();
-                            System.out.println("[EV3] " + msg);
+                            // Categorize by tag
+                            if (msg.startsWith("BATTERY:")) {
+                                System.out.println("[EV3][BATTERY] " + msg.substring(8).trim());
+                                // TODO: Add battery-specific handling here
+                            } else if (msg.startsWith("REPLY:")) {
+                                System.out.println("[EV3][REPLY] " + msg.substring(6).trim());
+                                // TODO: Add reply-specific handling here
+                            } else if (msg.startsWith("CONTROL:")) {
+                                System.out.println("[EV3][CONTROL] " + msg.substring(8).trim());
+                                // TODO: Add control-specific handling here
+                            } else {
+                                System.out.println("[EV3][UNKNOWN] " + msg);
+                            }
                             if ("BYE".equalsIgnoreCase(msg)) {
                                 running.set(false);
                                 break;
