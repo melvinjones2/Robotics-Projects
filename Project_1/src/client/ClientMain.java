@@ -1,5 +1,6 @@
 package client;
 
+import client.DisplayUtils;
 import lejos.hardware.Button;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
@@ -57,41 +58,27 @@ public class ClientMain {
             LCD.drawString(SERVER_HOST + ":" + SERVER_PORT, 0, 1);
             Sound.beep();
 
-            // ---- main loop: receive -> show -> auto-reply ----
-            String line;
-            while (running.get() && (line = in.readLine()) != null) {
-                String msg = line.trim();
+            // ---- command handling thread ----
+            IHandler handler = new CommandHandler(in, out, running, REPLIES);
+            Thread commandThread = new Thread(handler);
+            commandThread.start();
 
-                // local exit
+            // Main thread: monitor for ESCAPE button to exit
+            while (running.get()) {
                 if (Button.ESCAPE.isDown()) {
                     send(out, "BYE");
                     running.set(false);
                     break;
                 }
-
-                // handle control messages
-                if ("BYE".equalsIgnoreCase(msg)) {
-                    say("Bye!", true);
-                    running.set(false);
-                    break;
-                }
-                if ("BEEP".equalsIgnoreCase(msg)) {
-                    Sound.beep();
-                    say("Beep!", true);
-                    // fall through to reply
-                } else if (msg.length() > 0) {
-                    // Show the server's message
-                    say(msg, false);
-                }
-
-                // auto-reply with a rotating phrase
-                String reply = REPLIES[replyIndex];
-                replyIndex = (replyIndex + 1) % REPLIES.length;
-                send(out, reply);
+                Thread.sleep(100); // avoid busy wait
             }
-        } catch (IOException e) {
+
+            // Wait for command thread to finish
+            commandThread.join();
+
+        } catch (IOException | InterruptedException e) {
             LCD.drawString("Net error", 0, 3);
-            LCD.drawString(trim(e.getMessage()), 0, 4);
+            LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
             Sound.buzz();
         } finally {
             running.set(false);
@@ -104,32 +91,7 @@ public class ClientMain {
         }
     }
 
-    private static void say(String msg, boolean beep) {
-        if (beep) Sound.beep();
-        LCD.clear();
-        LCD.drawString(center(trimToWidth(msg, 16), 16), 0, 3);
-    }
-
     private static void send(BufferedWriter out, String line) throws IOException {
         out.write(line); out.write("\n"); out.flush();
-    }
-
-    private static String trimToWidth(String s, int w) {
-        if (s == null) return "";
-        return s.length() <= w ? s : s.substring(0, w);
-    }
-
-    private static String center(String s, int width) {
-        int pad = Math.max(0, (width - s.length()) / 2);
-        StringBuilder sb = new StringBuilder(width);
-        for (int k = 0; k < pad; k++) sb.append(' ');
-        sb.append(s);
-        while (sb.length() < width) sb.append(' ');
-        return sb.toString();
-    }
-
-    private static String trim(String s) {
-        if (s == null) return "";
-        return s.length() <= 16 ? s : s.substring(0, 16);
     }
 }
