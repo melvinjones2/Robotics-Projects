@@ -1,34 +1,44 @@
 package server;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ServerMain {
     private static final int PORT = 9999;
+    private static final int MAX_LOGS = 10;
     private static BufferedWriter logWriter = null;
 
+    // GUI components
+    private static JTextArea logArea;
+    private static JTextField commandField;
+    private static JButton sendButton;
+
     public static void main(String[] args) {
-        ServerSocket server = null;
-        Socket client = null;
+        // Rotate log files before opening new log
+        rotateLogs();
+
+        // Setup GUI windows
+        setupLogWindow();
         BufferedWriter out = null;
         BufferedReader in = null;
+        ServerSocket server = null;
+        Socket client = null;
         final AtomicBoolean running = new AtomicBoolean(true);
         final AtomicInteger frameCount = new AtomicInteger(0);
 
         try {
-            // Open log file for writing
-            logWriter = new BufferedWriter(new FileWriter("server_log.txt", true));
+            logWriter = new BufferedWriter(new FileWriter("server_log0.txt", false)); // always new log
             log("Server listening on " + PORT + " ...");
             server = new ServerSocket(PORT);
             client = server.accept();
@@ -72,8 +82,8 @@ public class ServerMain {
                                 log("[EV3][MOTOR] " + msg.substring(8).trim());
                             } else if (msg.startsWith("TICK:")) {
                                 int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                                int serverTick = frameCount.incrementAndGet(); // Increment on every TICK
-                                send(outFinal, "TICK_ACK:" + serverTick); // Reply with incremented frame count
+                                int serverTick = frameCount.incrementAndGet();
+                                send(outFinal, "TICK_ACK:" + serverTick);
                             } else if (msg.startsWith("BYE:")) {
                                 try {
                                     int clientTick = Integer.parseInt(msg.split(":")[1].trim());
@@ -100,24 +110,12 @@ public class ServerMain {
             reader.setDaemon(true);
             reader.start();
 
-            // ---- interactive send loop ----
-            Scanner sc = new Scanner(System.in);
-            try {
-                while (running.get()) {
-                    // Non-blocking user input check
-                    if (System.in.available() > 0) {
-                        String line = sc.nextLine();
-                        send(out, line + ":" + frameCount.get());
-                        if ("BYE".equalsIgnoreCase(line.trim())) {
-                            running.set(false);
-                            break;
-                        }
-                    }
-                    Thread.sleep(10); // Small sleep to avoid busy-waiting
-                }
-            } finally {
-                sc.close();
-            }
+            // ---- command window logic ----
+            setupCommandWindow(out, frameCount, running);
+
+            // Wait for the reader thread to finish
+            reader.join();
+
         } catch (IOException | InterruptedException e) {
             log("Server error: " + e.getMessage());
         } finally {
@@ -131,6 +129,86 @@ public class ServerMain {
         }
     }
 
+    private static void rotateLogs() {
+        try {
+            Path logDir = Paths.get(".");
+            Files.list(logDir)
+                .filter(path -> Files.isRegularFile(path) && path.toString().startsWith("server_log"))
+                .sorted((p1, p2) -> {
+                    try {
+                        return Files.getLastModifiedTime(p1).compareTo(Files.getLastModifiedTime(p2));
+                    } catch (IOException e) {
+                        return 0;
+                    }
+                })
+                .limit(MAX_LOGS)
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                    } catch (IOException e) {
+                        System.err.println("Error deleting log file: " + e.getMessage());
+                    }
+                });
+        } catch (IOException e) {
+            System.err.println("Error rotating logs: " + e.getMessage());
+        }
+    }
+
+    private static void setupLogWindow() {
+        JFrame logFrame = new JFrame("EV3 Server Log");
+        logArea = new JTextArea(30, 80);
+        logArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(logArea);
+        logFrame.add(scrollPane);
+        logFrame.pack();
+        logFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        logFrame.setLocation(100, 100);
+        logFrame.setVisible(true);
+    }
+
+    private static void setupCommandWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
+        final JFrame cmdFrame = new JFrame("EV3 Server Command");
+        commandField = new JTextField(40);
+        sendButton = new JButton("Send");
+        JPanel panel = new JPanel();
+        panel.add(commandField);
+        panel.add(sendButton);
+        cmdFrame.add(panel);
+        cmdFrame.pack();
+        cmdFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        cmdFrame.setLocation(100, 500);
+        cmdFrame.setVisible(true);
+
+        // Send command on button click or Enter key
+        ActionListener sendAction = new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                String line = commandField.getText().trim();
+                if (!line.isEmpty() && out != null) {
+                    try {
+                        send(out, line + ":" + frameCount.get());
+                        if ("BYE".equalsIgnoreCase(line)) {
+                            running.set(false);
+                            cmdFrame.dispose();
+                        }
+                    } catch (IOException ex) {
+                        log("Send error: " + ex.getMessage());
+                    }
+                    commandField.setText("");
+                }
+            }
+        };
+        sendButton.addActionListener(sendAction);
+        commandField.addActionListener(sendAction);
+
+        // Allow closing the command window to exit the server
+        cmdFrame.addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+                running.set(false);
+                cmdFrame.dispose();
+            }
+        });
+    }
+
     private static void send(BufferedWriter out, String line) throws IOException {
         out.write(line);
         out.write("\n");
@@ -141,6 +219,10 @@ public class ServerMain {
     private static void log(String msg) {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
         String logMsg = "[" + timestamp + "] " + msg;
+        if (logArea != null) {
+            logArea.append(logMsg + "\n");
+            logArea.setCaretPosition(logArea.getDocument().getLength());
+        }
         System.out.println(logMsg);
         if (logWriter != null) {
             try {
