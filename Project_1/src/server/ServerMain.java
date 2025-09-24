@@ -72,8 +72,8 @@ public class ServerMain {
                                 log("[EV3][MOTOR] " + msg.substring(8).trim());
                             } else if (msg.startsWith("TICK:")) {
                                 int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                                frameCount.set(clientTick); // Sync server to client
-                                send(outFinal, "TICK_ACK:" + clientTick); // Echo back client's tick
+                                int serverTick = frameCount.incrementAndGet(); // Increment on every TICK
+                                send(outFinal, "TICK_ACK:" + serverTick); // Reply with incremented frame count
                             } else if (msg.startsWith("BYE:")) {
                                 try {
                                     int clientTick = Integer.parseInt(msg.split(":")[1].trim());

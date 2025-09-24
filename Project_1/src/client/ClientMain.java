@@ -1,6 +1,7 @@
 package client;
 
 import client.DisplayUtils;
+import lejos.hardware.Battery;
 import lejos.hardware.Button;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
@@ -59,15 +60,7 @@ public class ClientMain {
                         String line;
                         while (running.get() && (line = inFinal.readLine()) != null) {
                             String msg = line.trim();
-                            if (msg.startsWith("TICK_ACK:")) {
-                                try {
-                                    int serverFrame = Integer.parseInt(msg.split(":")[1].trim());
-                                    frameCount = serverFrame; // Sync to server
-                                } catch (Exception e) {
-                                    // Ignore parse errors
-                                }
-                            }
-                            // Handle other messages if needed
+                            // Optionally handle TICK_ACK or other messages here
                         }
                     } catch (IOException e) {
                         running.set(false);
@@ -88,6 +81,14 @@ public class ClientMain {
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);
+
+                // Send battery status every 20 ticks (~1 second)
+                if (frameCount % 20 == 0) {
+                    double voltage = Battery.getVoltage();
+                    send(out, "BATTERY:" + voltage);
+                }
+
+                frameCount++; // Increment after sending
 
                 // Wait for next tick
                 long elapsed = System.currentTimeMillis() - tickStart;
