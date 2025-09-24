@@ -14,17 +14,11 @@ import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientMain {
-    private static final String SERVER_HOST = "10.0.1.8"; // change this to your ip. Use ip config and look at the bluetooth one
+    private static final String SERVER_HOST = "10.0.1.8";
     private static final int SERVER_PORT = 9999;
+    private static final int TICK_RATE_MS = 50; // 20 ticks per second
 
-    // What the robot "says" back
-    private static final String[] REPLIES = new String[] {
-        "Hello, human!",
-        "I am EV3.",
-        "Beep boop...",
-        "Ready to roll.",
-        "Awaiting orders."
-    };
+    private static volatile int frameCount = 0;
 
     public static void main(String[] args) {
         LCD.clear();
@@ -35,7 +29,6 @@ public class ClientMain {
         BufferedReader in = null;
         BufferedWriter out = null;
         final AtomicBoolean running = new AtomicBoolean(true);
-        int replyIndex = 0;
 
         try {
             sock = new Socket(SERVER_HOST, SERVER_PORT);
@@ -51,7 +44,7 @@ public class ClientMain {
                 Button.ESCAPE.waitForPress();
                 return;
             }
-            send(out, "READY");
+            send(out, "READY:0"); // Send initial frame count
 
             LCD.clear();
             LCD.drawString("Connected", 0, 0);
@@ -59,18 +52,47 @@ public class ClientMain {
             Sound.beep();
 
             // ---- command handling thread ----
-            IHandler handler = new CommandHandler(in, out, running, REPLIES);
-            Thread commandThread = new Thread(handler);
+            final BufferedReader inFinal = in;
+            Thread commandThread = new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        String line;
+                        while (running.get() && (line = inFinal.readLine()) != null) {
+                            String msg = line.trim();
+                            if (msg.startsWith("TICK_ACK:")) {
+                                try {
+                                    int serverFrame = Integer.parseInt(msg.split(":")[1].trim());
+                                    frameCount = serverFrame; // Sync to server
+                                } catch (Exception e) {
+                                    // Ignore parse errors
+                                }
+                            }
+                            // Handle other messages if needed
+                        }
+                    } catch (IOException e) {
+                        running.set(false);
+                    }
+                }
+            });
             commandThread.start();
 
-            // Main thread: monitor for ESCAPE button to exit
+            // Main thread: monitor for ESCAPE button to exit, and tick loop
             while (running.get()) {
+                long tickStart = System.currentTimeMillis();
+
                 if (Button.ESCAPE.isDown()) {
-                    send(out, "BYE");
+                    send(out, "BYE:" + frameCount);
                     running.set(false);
                     break;
                 }
-                Thread.sleep(100); // avoid busy wait
+
+                // Send a TICK message with the current frame count
+                send(out, "TICK:" + frameCount);
+
+                // Wait for next tick
+                long elapsed = System.currentTimeMillis() - tickStart;
+                long sleepTime = TICK_RATE_MS - elapsed;
+                if (sleepTime > 0) Thread.sleep(sleepTime);
             }
 
             // Wait for command thread to finish
@@ -82,21 +104,10 @@ public class ClientMain {
             Sound.buzz();
         } finally {
             running.set(false);
-            try { 
-            	if (in != null) in.close(); 
-        	} 
-            
-            catch (IOException ignored) {}
-            try {
-            	if (out != null) out.close(); 
-        	} 
-            catch (IOException ignored) {}
-            
-            try {
-            	if (sock != null) sock.close(); 
-        	} 
-            catch (IOException ignored) {}
-            
+            try { if (in != null) in.close(); } catch (IOException ignored) {}
+            try { if (out != null) out.close(); } catch (IOException ignored) {}
+            try { if (sock != null) sock.close(); } catch (IOException ignored) {}
+
             LCD.clear();
             LCD.drawString("Disconnected", 0, 2);
             Button.ESCAPE.waitForPress();

@@ -55,28 +55,52 @@ public class CommandHandler implements IHandler {
                     Sound.beep();
                     say("Beep!", true);
                 } else if (msg.toUpperCase().startsWith("MOVE")) {
-                    // MOVE <speed>
+                    // MOVE <speed> or MOVE <port> <speed>
                     String[] parts = msg.split(" ");
-                    int speed = 200;
-                    if (parts.length > 1) {
+                    if (parts.length == 2) {
+                        // MOVE <speed>
+                        int speed = 200;
                         try { speed = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveAllForward(speed);
+                        say("Motors moving at " + speed, false);
+                    } else if (parts.length == 3) {
+                        // MOVE <port> <speed>
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveForward(port, speed);
+                        say("Motor " + port + " moving at " + speed, false);
                     }
-                    MotorController.moveAllForward(speed);
-                    say("Motors moving at " + speed, false);
+                } else if (msg.toUpperCase().startsWith("BWD")) {
+                    // BWD <port> <speed>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 3) {
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveBackward(port, speed);
+                        say("Motor " + port + " backward at " + speed, false);
+                    }
                 } else if (msg.toUpperCase().startsWith("STOP")) {
-                    MotorController.stopAll();
-                    say("Motors stopped", false);
+                    // STOP or STOP <port>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 1) {
+                        MotorController.stopAll();
+                        say("Motors stopped", false);
+                    } else if (parts.length == 2) {
+                        char port = parts[1].charAt(0);
+                        MotorController.stop(port);
+                        say("Motor " + port + " stopped", false);
+                    }
                 } else if (msg.length() > 0) {
                     // Show the server's message
                     say(msg, false);
-                } else {
-                    // auto-reply with a rotating phrase
-                    String reply = replies[replyIndex];
-                    replyIndex = (replyIndex + 1) % replies.length;
-                    send(out, "REPLY: " + reply);
                 }
 
-
+                // auto-reply with a rotating phrase
+                String reply = replies[replyIndex];
+                replyIndex = (replyIndex + 1) % replies.length;
+                send(out, "REPLY: " + reply);
             }
         } catch (IOException e) {
             LCD.drawString("Net error", 0, 3);

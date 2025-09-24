@@ -6,15 +6,73 @@ import lejos.hardware.motor.Motor;
 /**
  * Provides generic motor movement for debugging.
  */
+/**
+ * Usage in CommandHandler:
+ *
+ * MOVE <speed>            // Move all motors forward at <speed>
+ * MOVE <port> <speed>     // Move one motor forward (A/B/C/D) at <speed>
+ * BWD <port> <speed>      // Move one motor backward (A/B/C/D) at <speed>
+ * STOP                    // Stop all motors
+ * STOP <port>             // Stop one motor (A/B/C/D)
+ */
 public class MotorController {
+    public static BaseRegulatedMotor getMotor(char port) {
+        switch (Character.toUpperCase(port)) {
+            case 'A': return Motor.A;
+            case 'B': return Motor.B;
+            case 'C': return Motor.C;
+            case 'D': return Motor.D;
+            default: return null;
+        }
+    }
+
+    /**
+     * Move a specific motor forward at the given speed.
+     */
+    public static void moveForward(char port, int speed) {
+        BaseRegulatedMotor motor = getMotor(port);
+        if (motor != null) {
+            motor.setSpeed(speed);
+            motor.forward();
+        }
+    }
+
+    /**
+     * Move a specific motor backward at the given speed.
+     */
+    public static void moveBackward(char port, int speed) {
+        BaseRegulatedMotor motor = getMotor(port);
+        if (motor != null) {
+            motor.setSpeed(speed);
+            motor.backward();
+        }
+    }
+
+    /**
+     * Stop a specific motor.
+     */
+    public static void stop(char port) {
+        BaseRegulatedMotor motor = getMotor(port);
+        if (motor != null) {
+            motor.stop();
+        }
+    }
+
     /**
      * Moves all motors forward at the given speed.
      */
     public static void moveAllForward(int speed) {
-        BaseRegulatedMotor[] motors = {Motor.A, Motor.B, Motor.C, Motor.D};
-        for (BaseRegulatedMotor motor : motors) {
-            motor.setSpeed(speed);
-            motor.forward();
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            moveForward(port, speed);
+        }
+    }
+
+    /**
+     * Moves all motors backward at the given speed.
+     */
+    public static void moveAllBackward(int speed) {
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            moveBackward(port, speed);
         }
     }
 
@@ -22,9 +80,8 @@ public class MotorController {
      * Stops all motors.
      */
     public static void stopAll() {
-        BaseRegulatedMotor[] motors = {Motor.A, Motor.B, Motor.C, Motor.D};
-        for (BaseRegulatedMotor motor : motors) {
-            motor.stop();
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            stop(port);
         }
     }
 }
