@@ -129,28 +129,24 @@ public class ServerMain {
         }
     }
 
+    // Rotates server_log0.txt ... server_log9.txt, deleting the oldest and shifting others up
     private static void rotateLogs() {
         try {
-            Path logDir = Paths.get(".");
-            Files.list(logDir)
-                .filter(path -> Files.isRegularFile(path) && path.toString().startsWith("server_log"))
-                .sorted((p1, p2) -> {
-                    try {
-                        return Files.getLastModifiedTime(p1).compareTo(Files.getLastModifiedTime(p2));
-                    } catch (IOException e) {
-                        return 0;
-                    }
-                })
-                .limit(MAX_LOGS)
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        System.err.println("Error deleting log file: " + e.getMessage());
-                    }
-                });
+            // Delete the oldest log if it exists
+            Path oldest = Paths.get("server_log" + (MAX_LOGS - 1) + ".txt");
+            if (Files.exists(oldest)) {
+                Files.delete(oldest);
+            }
+            // Move logs N-2 ... 0 up by one
+            for (int i = MAX_LOGS - 2; i >= 0; i--) {
+                Path src = Paths.get("server_log" + i + ".txt");
+                Path dest = Paths.get("server_log" + (i + 1) + ".txt");
+                if (Files.exists(src)) {
+                    Files.move(src, dest);
+                }
+            }
         } catch (IOException e) {
-            System.err.println("Error rotating logs: " + e.getMessage());
+            System.err.println("Log rotation error: " + e.getMessage());
         }
     }
 
