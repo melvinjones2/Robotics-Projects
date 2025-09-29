@@ -20,6 +20,7 @@ public class ClientMain {
     private static final int TICK_RATE_MS = 50; // 20 ticks per second
 
     private static volatile int frameCount = 0;
+    private static final boolean DEBUG = false; // Set true to enable client debug logging
 
     public static void main(String[] args) {
         LCD.clear();
@@ -53,20 +54,16 @@ public class ClientMain {
             Sound.beep();
 
             // ---- command handling thread ----
-            final BufferedReader inFinal = in;
-            Thread commandThread = new Thread(new Runnable() {
-                public void run() {
-                    try {
-                        String line;
-                        while (running.get() && (line = inFinal.readLine()) != null) {
-                            String msg = line.trim();
-                            // Optionally handle TICK_ACK or other messages here
-                        }
-                    } catch (IOException e) {
-                        running.set(false);
-                    }
-                }
-            });
+            final String[] replies = new String[] {
+                "Hello, human!",
+                "I am EV3.",
+                "Beep boop...",
+                "Ready to roll.",
+                "Awaiting orders."
+            };
+
+            final CommandHandler command_handler = new CommandHandler(in, out, running, replies);
+            Thread commandThread = new Thread(command_handler);
             commandThread.start();
 
             // Main thread: monitor for ESCAPE button to exit, and tick loop
@@ -81,12 +78,6 @@ public class ClientMain {
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);
-
-                // Send battery status every 20 ticks (~1 second)
-                if (frameCount % 20 == 0) {
-                    double voltage = Battery.getVoltage();
-                    send(out, "BATTERY:" + voltage);
-                }
 
                 frameCount++; // Increment after sending
 

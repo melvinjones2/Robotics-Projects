@@ -1,4 +1,3 @@
-
 package client;
 
 import lejos.hardware.Battery;
@@ -9,16 +8,37 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashMap;
+import java.util.Map;
 
 public class CommandHandler implements IHandler {
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
-    private volatile int batteryMonitorIntervalMs = 1000; // Default 1 second
-    private java.util.Timer batteryMonitorTimer;
+    private volatile boolean debug;
+    private final Map<String, Command> commandMap = new HashMap<String, Command>();
 
-    // Initialization step
+    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
+        this.in = in;
+        this.out = out;
+        this.running = running;
+        this.replies = replies;
+        registerCommands();
+        init();
+    }
+
+    private void registerCommands() {
+        commandMap.put("BEEP", new BeepCommand());
+        commandMap.put("MOVE", new MoveCommand());
+        commandMap.put("BWD", new BackwardCommand());
+        commandMap.put("STOP", new StopCommand());
+        commandMap.put("GET_BATTERY", new BatteryCommand());
+        commandMap.put("SET_DEBUG", new SetDebugCommand());
+        commandMap.put("BYE", new ByeCommand());
+        // Add more commands as needed
+    }
+
     private void init() {
         String motorSummary = MotorDetector.getMotorSummary();
         LCD.drawString(motorSummary, 0, 2);
@@ -29,15 +49,6 @@ public class CommandHandler implements IHandler {
         }
     }
 
-    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
-        this.in = in;
-        this.out = out;
-        this.running = running;
-        this.replies = replies;
-        init();
-        startBatteryMonitoring();
-    }
-
     public void run() {
         int replyIndex = 0;
         try {
@@ -45,109 +56,77 @@ public class CommandHandler implements IHandler {
             while (running.get() && (line = in.readLine()) != null) {
                 String msg = line.trim();
 
-                // handle control messages
-                if ("BYE".equalsIgnoreCase(msg)) {
-                    say("Bye!", true);
-                    running.set(false);
-                    break;
-                }
-                if ("BEEP".equalsIgnoreCase(msg)) {
-                    Sound.beep();
-                    say("Beep!", true);
-                } else if (msg.toUpperCase().startsWith("MOVE")) {
-                    // MOVE <speed> or MOVE <port> <speed>
-                    String[] parts = msg.split(" ");
-                    if (parts.length == 2) {
-                        // MOVE <speed>
-                        int speed = 200;
-                        try { speed = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
-                        MotorController.moveAllForward(speed);
-                        say("Motors moving at " + speed, false);
-                    } else if (parts.length == 3) {
-                        // MOVE <port> <speed>
-                        char port = parts[1].charAt(0);
-                        int speed = 200;
-                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
-                        MotorController.moveForward(port, speed);
-                        say("Motor " + port + " moving at " + speed, false);
-                    }
-                } else if (msg.toUpperCase().startsWith("BWD")) {
-                    // BWD <port> <speed>
-                    String[] parts = msg.split(" ");
-                    if (parts.length == 3) {
-                        char port = parts[1].charAt(0);
-                        int speed = 200;
-                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
-                        MotorController.moveBackward(port, speed);
-                        say("Motor " + port + " backward at " + speed, false);
-                    }
-                } else if (msg.toUpperCase().startsWith("STOP")) {
-                    // STOP or STOP <port>
-                    String[] parts = msg.split(" ");
-                    if (parts.length == 1) {
-                        MotorController.stopAll();
-                        say("Motors stopped", false);
-                    } else if (parts.length == 2) {
-                        char port = parts[1].charAt(0);
-                        MotorController.stop(port);
-                        say("Motor " + port + " stopped", false);
-                    }
-                } else if (msg.length() > 0) {
-                    // Show the server's message
-                    say(msg, false);
+                // Remove tick/frame suffix if present (e.g., ":123")
+                int colonIdx = msg.lastIndexOf(':');
+                if (colonIdx > 0 && colonIdx < msg.length() - 1) {
+                    String possibleTick = msg.substring(colonIdx + 1);
+                    try {
+                        Integer.parseInt(possibleTick);
+                        msg = msg.substring(0, colonIdx).trim();
+                    } catch (NumberFormatException ignored) {}
                 }
 
-                // auto-reply with a rotating phrase
-                String reply = replies[replyIndex];
-                replyIndex = (replyIndex + 1) % replies.length;
-                send(out, "REPLY: " + reply);
+                // Normalize whitespace
+                msg = msg.replaceAll("\\s+", " ");
+
+                // Split command and arguments
+                String[] parts = msg.split(" ");
+                String cmdKey = parts[0].toUpperCase();
+
+                // Handle SET_DEBUG:1 style
+                if (cmdKey.startsWith("SET_DEBUG:")) {
+                    String value = cmdKey.substring("SET_DEBUG:".length()).trim();
+                    setDebug("1".equals(value));
+                    sendLog("Debug mode set to " + debug);
+                    continue;
+                }
+
+                Command cmd = commandMap.get(cmdKey);
+                if (cmd != null) {
+                    cmd.execute(parts, this);
+                    if ("BYE".equalsIgnoreCase(cmdKey)) break;
+                } else if (msg.length() > 0) {
+                    say(msg, false);
+                    sendLog("Displayed message: " + msg);
+                } else {
+                    if (replies.length > 0) {
+                        String reply = replies[replyIndex % replies.length];
+                        replyIndex++;
+                        send(out, "REPLY: " + reply);
+                        sendLog("Sent reply: " + reply);
+                    }
+                }
             }
         } catch (IOException e) {
             LCD.drawString("Net error", 0, 3);
             LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
             Sound.buzz();
+            sendLog("Network error: " + e.getMessage());
         }
-        stopBatteryMonitoring();
     }
 
-    private void send(BufferedWriter out, String line) throws IOException {
+    // Utility methods for commands to use
+    public void send(BufferedWriter out, String line) throws IOException {
         out.write(line); out.write("\n"); out.flush();
     }
 
-    // Battery monitoring logic
-    private void startBatteryMonitoring() {
-        batteryMonitorTimer = new java.util.Timer(true);
-        batteryMonitorTimer.scheduleAtFixedRate(new java.util.TimerTask() {
-            @Override
-            public void run() {
-                monitorBattery();
+    public void sendLog(String logMsg) {
+        if (debug) {
+            try {
+                send(this.out, "LOG: " + logMsg);
+            } catch (IOException e) {
+                // Optionally handle send error
             }
-        }, 0, batteryMonitorIntervalMs);
-    }
-
-    private void stopBatteryMonitoring() {
-        if (batteryMonitorTimer != null) {
-            batteryMonitorTimer.cancel();
         }
     }
 
-    public void setBatteryMonitorInterval(int intervalMs) {
-        batteryMonitorIntervalMs = intervalMs;
-        stopBatteryMonitoring();
-        startBatteryMonitoring();
-    }
-
-    private void monitorBattery() {
-        int batteryLevel = Battery.getVoltageMilliVolt();
-        LCD.drawString("Battery: " + batteryLevel + "mV", 0, 5);
-        try {
-            send(out, "BATTERY: " + batteryLevel + "mV");
-        } catch (IOException e) {
-            LCD.drawString("Batt send err", 0, 6);
-        }
-    }
-
-    private void say(String msg, boolean beep) {
+    public void say(String msg, boolean beep) {
         DisplayUtils.say(msg, beep);
     }
+
+    // Getters for command classes
+    public BufferedWriter getOut() { return out; }
+    public AtomicBoolean getRunning() { return running; }
+    public void setDebug(boolean debug) { this.debug = debug; }
+    public boolean isDebug() { return debug; }
 }
