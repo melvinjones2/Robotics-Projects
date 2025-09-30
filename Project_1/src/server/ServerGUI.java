@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ServerGUI {
+
     private JTextArea logArea;
     private JTextField commandField;
     private JButton sendButton;
@@ -111,8 +112,12 @@ public class ServerGUI {
     }
 
     public void closeWindows() {
-        if (logFrame != null) logFrame.dispose();
-        if (cmdFrame != null) cmdFrame.dispose();
+        if (logFrame != null) {
+            logFrame.dispose();
+        }
+        if (cmdFrame != null) {
+            cmdFrame.dispose();
+        }
     }
 
     public void appendLog(String msg, boolean isDebug) {
@@ -138,7 +143,9 @@ public class ServerGUI {
         out.write("\n");
         out.flush();
         if (line.startsWith("TICK_ACK:")) {
-            if (debugMode) LogManager.log("[you] " + line);
+            if (debugMode) {
+                LogManager.log("[you] " + line);
+            }
         } else {
             LogManager.log("[you] " + line);
         }
@@ -149,7 +156,9 @@ public class ServerGUI {
      * Call this after setupLogWindow().
      */
     public void addPayloadButton(final Runnable selectPayload) {
-        if (topPanel == null) return;
+        if (topPanel == null) {
+            return;
+        }
 
         JButton selectBtn = new JButton("Select Payload");
         selectBtn.addActionListener(new ActionListener() {

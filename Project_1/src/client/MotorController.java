@@ -5,6 +5,7 @@ import java.util.Map;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
 public class MotorController {
+
     private static final Map<Character, IMotorControl> motorMap = new HashMap<Character, IMotorControl>();
     private static final int MIN_SPEED = 0;
     private static final int MAX_SPEED = 900; // Adjust as needed for your motors
@@ -58,15 +59,21 @@ public class MotorController {
     }
 
     public static void moveAllForward(int speed) {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) moveForward(port, speed);
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            moveForward(port, speed);
+        }
     }
 
     public static void moveAllBackward(int speed) {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) moveBackward(port, speed);
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            moveBackward(port, speed);
+        }
     }
 
     public static void stopAll() {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) stop(port);
+        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
+            stop(port);
+        }
     }
 
     // Shutdown method to stop and close motors

@@ -3,6 +3,7 @@ package client;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
 public class EV3MotorControl implements IMotorControl {
+
     private final BaseRegulatedMotor motor;
 
     public EV3MotorControl(BaseRegulatedMotor motor) {

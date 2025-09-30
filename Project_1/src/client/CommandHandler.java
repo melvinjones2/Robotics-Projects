@@ -10,13 +10,14 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.HashMap;
 import java.util.Map;
+import client.Message;
 
 public class CommandHandler implements IHandler {
+
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
-    private volatile boolean debug;
     private final Map<String, Command> commandMap = new HashMap<String, Command>();
 
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
@@ -55,42 +56,37 @@ public class CommandHandler implements IHandler {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
                 String msg = line.trim();
+                Message message = Message.parse(msg);
 
-                // Remove tick/frame suffix if present (e.g., ":123")
-                int colonIdx = msg.lastIndexOf(':');
-                if (colonIdx > 0 && colonIdx < msg.length() - 1) {
-                    String possibleTick = msg.substring(colonIdx + 1);
-                    try {
-                        Integer.parseInt(possibleTick);
-                        msg = msg.substring(0, colonIdx).trim();
-                    } catch (NumberFormatException ignored) {}
+                if ("SET_DEBUG".equalsIgnoreCase(message.getType())) {
+                    ClientMain.DEBUG = "1".equals(message.getPayload().trim());
+                    System.out.println("DEBUG mode set to: " + ClientMain.DEBUG);
+                    continue;
                 }
-
-                // Normalize whitespace
-                msg = msg.replaceAll("\\s+", " ");
 
                 // Ignore TICK_ACK messages for display
-                if (msg.startsWith("TICK_ACK:")) {
-                    // Optionally handle debug logging here, but do not display
+                if ("TICK_ACK".equals(message.getType())) {
                     continue;
                 }
 
-                // Split command and arguments
-                String[] parts = msg.split(" ");
-                String cmdKey = parts[0].toUpperCase();
-
-                // Handle SET_DEBUG:1 style
-                if (cmdKey.startsWith("SET_DEBUG:")) {
-                    String value = cmdKey.substring("SET_DEBUG:".length()).trim();
-                    setDebug("1".equals(value));
-                    sendLog("Debug mode set to " + debug);
+                // Respond to GET_BATTERY
+                if ("GET_BATTERY".equalsIgnoreCase(message.getType())) {
+                    int voltage = lejos.hardware.Battery.getVoltageMilliVolt();
+                    int current = lejos.hardware.Battery.getCurrentMilliAmp();
+                    int percent = lejos.hardware.Battery.getBatteryLevel();
+                    // Format as: BATTERY: VOLTAGE=7.2 V, CURRENT=0.5 A, LEVEL=80%
+                    String batteryMsg = String.format("BATTERY: VOLTAGE=%.2f V, CURRENT=%.2f A, LEVEL=%d%%",
+                            voltage / 1000.0, current / 1000.0, percent);
+                    send(out, batteryMsg);
                     continue;
                 }
 
-                Command cmd = commandMap.get(cmdKey);
+                Command cmd = commandMap.get(message.getType());
                 if (cmd != null) {
-                    cmd.execute(parts, this);
-                    if ("BYE".equalsIgnoreCase(cmdKey)) break;
+                    cmd.execute(msg.split(" "), this);
+                    if ("BYE".equalsIgnoreCase(message.getType())) {
+                        break;
+                    }
                 } else if (msg.length() > 0) {
                     say(msg, false);
                     sendLog("Displayed message: " + msg);
@@ -98,7 +94,7 @@ public class CommandHandler implements IHandler {
                     if (replies.length > 0) {
                         String reply = replies[replyIndex % replies.length];
                         replyIndex++;
-                        send(out, "REPLY: " + reply);
+                        send(out, Message.construct("REPLY", reply));
                         sendLog("Sent reply: " + reply);
                     }
                 }
@@ -113,11 +109,13 @@ public class CommandHandler implements IHandler {
 
     // Utility methods for commands to use
     public void send(BufferedWriter out, String line) throws IOException {
-        out.write(line); out.write("\n"); out.flush();
+        out.write(line);
+        out.write("\n");
+        out.flush();
     }
 
     public void sendLog(String logMsg) {
-        if (debug) {
+        if (ClientMain.DEBUG) {
             try {
                 send(this.out, "LOG: " + logMsg);
             } catch (IOException e) {
@@ -131,8 +129,11 @@ public class CommandHandler implements IHandler {
     }
 
     // Getters for command classes
-    public BufferedWriter getOut() { return out; }
-    public AtomicBoolean getRunning() { return running; }
-    public void setDebug(boolean debug) { this.debug = debug; }
-    public boolean isDebug() { return debug; }
+    public BufferedWriter getOut() {
+        return out;
+    }
+
+    public AtomicBoolean getRunning() {
+        return running;
+    }
 }

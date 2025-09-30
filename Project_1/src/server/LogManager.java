@@ -6,17 +6,22 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class LogManager {
+
     private static final int MAX_LOGS = 10;
     private static BufferedWriter logWriter = null;
 
     public static void rotateLogs() {
         try {
             Path oldest = Paths.get("server_log" + (MAX_LOGS - 1) + ".txt");
-            if (Files.exists(oldest)) Files.delete(oldest);
+            if (Files.exists(oldest)) {
+                Files.delete(oldest);
+            }
             for (int i = MAX_LOGS - 2; i >= 0; i--) {
                 Path src = Paths.get("server_log" + i + ".txt");
                 Path dest = Paths.get("server_log" + (i + 1) + ".txt");
-                if (Files.exists(src)) Files.move(src, dest);
+                if (Files.exists(src)) {
+                    Files.move(src, dest);
+                }
             }
         } catch (IOException e) {
             System.err.println("Log rotation error: " + e.getMessage());
@@ -36,11 +41,17 @@ public class LogManager {
                 logWriter.write(logMsg);
                 logWriter.newLine();
                 logWriter.flush();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
     public static void close() {
-        try { if (logWriter != null) logWriter.close(); } catch (IOException ignored) {}
+        try {
+            if (logWriter != null) {
+                logWriter.close();
+        
+            }} catch (IOException ignored) {
+        }
     }
 }

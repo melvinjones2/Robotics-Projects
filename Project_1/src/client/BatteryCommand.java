@@ -4,6 +4,7 @@ import lejos.hardware.Battery;
 import java.io.IOException;
 
 public class BatteryCommand implements Command {
+
     public void execute(String[] args, CommandHandler context) {
         int batteryLevel = Battery.getVoltageMilliVolt();
         try {

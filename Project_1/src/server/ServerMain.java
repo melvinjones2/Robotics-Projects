@@ -3,17 +3,16 @@ package server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.awt.Desktop;
-import java.net.URI;
 import javax.swing.JOptionPane;
-import java.util.List;
 
 public class ServerMain {
     private static final int PORT = 9999;
     private static Payload currentPayload = null;
-    private static BufferedWriter out = null; // Make static
+    private static BufferedWriter out = null; 
+    private static AtomicInteger frameCount = new AtomicInteger(0);
 
     public static void main(String[] args) {
         LogManager.rotateLogs();
@@ -43,7 +42,7 @@ public class ServerMain {
                 new Runnable() { public void run() { showPayloadSelection(); } }
             );
 
-            send(out, "HELLO");
+            sendMessage("HELLO", "");
             String resp = in.readLine();
             int clientFrame = 0;
             if (resp != null && resp.trim().startsWith("READY:")) {
@@ -67,54 +66,63 @@ public class ServerMain {
                         String line;
                         while (running.get() && (line = inRef.readLine()) != null) {
                             String msg = line.trim();
+                            Message message = Message.parse(msg);
+
                             if (currentPayload != null) {
                                 currentPayload.handleMessage(msg, outFinal, gui);
                             } else {
-                                // fallback to default handling
-                                if (msg.startsWith("BATTERY:")) {
-                                    LogManager.log("[EV3][BATTERY] " + msg.substring(8).trim());
-                                    gui.appendLog(msg, false);
-                                } else if (msg.startsWith("REPLY:")) {
-                                    LogManager.log("[EV3][REPLY] " + msg.substring(6).trim());
-                                    gui.appendLog(msg, false);
-                                } else if (msg.startsWith("CONTROL:")) {
-                                    LogManager.log("[EV3][CONTROL] " + msg.substring(8).trim());
-                                    gui.appendLog(msg, false);
-                                } else if (msg.startsWith("MOTOR:")) {
-                                    LogManager.log("[EV3][MOTOR] " + msg.substring(8).trim());
-                                    gui.appendLog(msg, false);
-                                } else if (msg.startsWith("LOG:")) {
-                                    LogManager.log("[EV3][LOG] " + msg.substring(4).trim());
-                                    gui.appendLog(msg, false);
-                                } else if (msg.startsWith("TICK_ACK:")) {
-                                    if (gui.isDebugMode()) {
-                                        LogManager.log("[DEBUG][TICK_ACK] Received " + msg);
-                                        gui.appendLog(msg, true);
-                                    }
-                                } else if (msg.startsWith("TICK:")) {
-                                    int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                                    int serverTick = frameCount.incrementAndGet();
-                                    send(outFinal, "TICK_ACK:" + serverTick);
-                                    if (gui.isDebugMode()) {
-                                        LogManager.log("[DEBUG][TICK_ACK] Sent TICK_ACK:" + serverTick);
-                                        gui.appendLog("TICK_ACK:" + serverTick, true);
-                                    }
-                                } else if (msg.startsWith("BYE:")) {
-                                    try {
-                                        int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                                        LogManager.log("[EV3][BYE] Client frame: " + clientTick + ", Server frame: " + frameCount.get());
-                                        send(outFinal, "BYE_ACK:" + frameCount.get());
-                                    } catch (Exception e) {
-                                        send(outFinal, "BYE_ACK:" + frameCount.get());
-                                    }
-                                    running.set(false);
-                                    gui.closeWindows();
-                                    break;
-                                } else {
-                                    LogManager.log("[EV3][UNKNOWN] " + msg);
-                                    gui.appendLog(msg, false);
+                                switch (message.getType()) {
+                                    case "BATTERY":
+                                        LogManager.log("[EV3][BATTERY] " + message.getPayload());
+                                        gui.appendLog(msg, false);
+                                        break;
+                                    case "REPLY":
+                                        LogManager.log("[EV3][REPLY] " + message.getPayload());
+                                        gui.appendLog(msg, false);
+                                        break;
+                                    case "CONTROL":
+                                        LogManager.log("[EV3][CONTROL] " + message.getPayload());
+                                        gui.appendLog(msg, false);
+                                        break;
+                                    case "MOTOR":
+                                        LogManager.log("[EV3][MOTOR] " + message.getPayload());
+                                        gui.appendLog(msg, false);
+                                        break;
+                                    case "LOG":
+                                        LogManager.log("[EV3][LOG] " + message.getPayload());
+                                        gui.appendLog(msg, false);
+                                        break;
+                                    case "TICK_ACK":
+                                        if (gui.isDebugMode()) {
+                                            LogManager.log("[DEBUG][TICK_ACK] Received " + msg);
+                                            gui.appendLog(msg, true);
+                                        }
+                                        break;
+                                    case "TICK":
+                                        int clientTick = Integer.parseInt(message.getPayload());
+                                        int serverTick = frameCount.incrementAndGet();
+                                        sendMessage("TICK_ACK", String.valueOf(serverTick));
+                                        if (gui.isDebugMode()) {
+                                            LogManager.log("[DEBUG][TICK_ACK] Sent TICK_ACK:" + serverTick);
+                                            gui.appendLog("TICK_ACK:" + serverTick, true);
+                                        }
+                                        break;
+                                    case "BYE":
+                                        try {
+                                            int clientTickBye = Integer.parseInt(message.getPayload());
+                                            LogManager.log("[EV3][BYE] Client frame: " + clientTickBye + ", Server frame: " + frameCount.get());
+                                            sendMessage("BYE_ACK", String.valueOf(frameCount.get()));
+                                        } catch (Exception e) {
+                                            sendMessage("BYE_ACK", String.valueOf(frameCount.get()));
+                                        }
+                                        running.set(false);
+                                        gui.closeWindows();
+                                        break;
+                                    default:
+                                        LogManager.log("[EV3][UNKNOWN] " + msg);
+                                        gui.appendLog(msg, false);
                                 }
-                                if ("BYE".equalsIgnoreCase(msg)) {
+                                if ("BYE".equalsIgnoreCase(message.getType())) {
                                     running.set(false);
                                     gui.closeWindows();
                                     break;
@@ -184,11 +192,27 @@ public class ServerMain {
     public static BufferedWriter getWriter() {
         return out;
     }
+    public static int getFrameCount() {
+        return frameCount.get();
+    }
+    public static void sendMessage(String type, String payload, int frameCount) throws IOException {
+        if (out != null) {
+            String msg = Message.construct(type, payload + frameCount);
+            out.write(msg);
+            out.write("\n");
+            out.flush();
+            LogManager.log("[you] " + msg);
+        }
+    }
 
-    private static void send(BufferedWriter out, String line) throws IOException {
-        out.write(line);
-        out.write("\n");
-        out.flush();
-        LogManager.log("[you] " + line);
+    // Overload for messages without frame count
+    public static void sendMessage(String type, String payload) throws IOException {
+        if (out != null) {
+            String msg = Message.construct(type, payload + frameCount.get());
+            out.write(msg);
+            out.write("\n");
+            out.flush();
+            LogManager.log("[you] " + msg);
+        }
     }
 }
