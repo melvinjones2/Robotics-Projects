@@ -69,6 +69,12 @@ public class CommandHandler implements IHandler {
                 // Normalize whitespace
                 msg = msg.replaceAll("\\s+", " ");
 
+                // Ignore TICK_ACK messages for display
+                if (msg.startsWith("TICK_ACK:")) {
+                    // Optionally handle debug logging here, but do not display
+                    continue;
+                }
+
                 // Split command and arguments
                 String[] parts = msg.split(" ");
                 String cmdKey = parts[0].toUpperCase();
