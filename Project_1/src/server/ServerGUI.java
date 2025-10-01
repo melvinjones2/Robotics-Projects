@@ -12,18 +12,15 @@ public class ServerGUI {
     private JTextArea logArea;
     private JTextField commandField;
     private JButton sendButton;
-    private JFrame logFrame;
-    private JFrame cmdFrame;
     private volatile boolean debugMode = false;
-    private JPanel topPanel; // <-- Add this field
 
     public void setupLogWindow(final BufferedWriter outFinal) {
-        logFrame = new JFrame("EV3 Server Log");
+        JFrame logFrame = new JFrame("EV3 Server Log");
         logArea = new JTextArea(30, 80);
         logArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(logArea);
 
-        topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT)); // <-- Use field
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         final JCheckBox debugBox = new JCheckBox("Debug Mode");
         debugBox.setSelected(debugMode);
         debugBox.addItemListener(new ItemListener() {
@@ -42,7 +39,7 @@ public class ServerGUI {
         topPanel.add(debugBox);
 
         logFrame.setLayout(new BorderLayout());
-        logFrame.add(topPanel, BorderLayout.NORTH); // <-- Use field
+        logFrame.add(topPanel, BorderLayout.NORTH);
         logFrame.add(scrollPane, BorderLayout.CENTER);
 
         logFrame.pack();
@@ -52,7 +49,7 @@ public class ServerGUI {
     }
 
     public void setupCommandWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
-        cmdFrame = new JFrame("EV3 Server Command");
+        final JFrame cmdFrame = new JFrame("EV3 Server Command");
         commandField = new JTextField(40);
         sendButton = new JButton("Send");
         JButton batteryButton = new JButton("Request Battery");
@@ -110,11 +107,6 @@ public class ServerGUI {
         });
     }
 
-    public void closeWindows() {
-        if (logFrame != null) logFrame.dispose();
-        if (cmdFrame != null) cmdFrame.dispose();
-    }
-
     public void appendLog(String msg, boolean isDebug) {
         if (logArea != null) {
             if (isDebug) {
@@ -142,25 +134,5 @@ public class ServerGUI {
         } else {
             LogManager.log("[you] " + line);
         }
-    }
-
-    /**
-     * Adds buttons for payload selection and browser opening to the log window.
-     * Call this after setupLogWindow().
-     */
-    public void addPayloadButton(final Runnable selectPayload) {
-        if (topPanel == null) return;
-
-        JButton selectBtn = new JButton("Select Payload");
-        selectBtn.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                selectPayload.run();
-            }
-        });
-
-        topPanel.add(selectBtn);
-
-        topPanel.revalidate();
-        topPanel.repaint();
     }
 }
