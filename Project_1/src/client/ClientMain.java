@@ -23,7 +23,10 @@ public class ClientMain {
     private static final int TICK_RATE_MS = 50; // 20 ticks per second
 
     private static volatile int frameCount = 0;
+<<<<<<< HEAD
     private static volatile boolean running = true;
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
     public static void main(String[] args) {
         LCD.clear();
@@ -77,6 +80,7 @@ public class ClientMain {
             Sound.beep();
 
             // ---- command handling thread ----
+<<<<<<< HEAD
             final String[] replies = new String[]{
                 "Hello, human!",
                 "I am EV3.",
@@ -87,6 +91,22 @@ public class ClientMain {
 
             final CommandHandler command_handler = new CommandHandler(in, out, running, replies);
             Thread commandThread = new Thread(command_handler);
+=======
+            final BufferedReader inFinal = in;
+            Thread commandThread = new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        String line;
+                        while (running.get() && (line = inFinal.readLine()) != null) {
+                            String msg = line.trim();
+                            // Optionally handle TICK_ACK or other messages here
+                        }
+                    } catch (IOException e) {
+                        running.set(false);
+                    }
+                }
+            });
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             commandThread.start();
 
             // Main thread: monitor for ESCAPE button to exit, and tick loop
@@ -109,7 +129,17 @@ public class ClientMain {
                 send(out, "TICK:" + frameCount);
                 // System.out.println("Sent to server: TICK:" + frameCount);
 
+<<<<<<< HEAD
                 frameCount++;
+=======
+                // Send battery status every 20 ticks (~1 second)
+                if (frameCount % 20 == 0) {
+                    double voltage = Battery.getVoltage();
+                    send(out, "BATTERY:" + voltage);
+                }
+
+                frameCount++; // Increment after sending
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
                 long elapsed = System.currentTimeMillis() - tickStart;
                 long sleepTime = TICK_RATE_MS - elapsed;

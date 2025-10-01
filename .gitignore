@@ -48,6 +48,7 @@ desktop.ini
 # Keep jars inside lib (any depth)
 !lib/**/*.jar
 !lib/*.jar
+<<<<<<< HEAD
 Project_1/server_log0.txt
 Project_1/server_log1.txt
 Project_1/server_log2.txt
@@ -61,3 +62,5 @@ Project_1/server_log9.txt
 Project_1/battery_log.csv
 Project_1/src/client/.LCKMessage.java~
 Project_1/src/server/.LCKMessage.java~
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)

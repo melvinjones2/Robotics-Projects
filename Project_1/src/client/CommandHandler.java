@@ -1,3 +1,4 @@
+
 package client;
 
 import lejos.hardware.Battery;
@@ -8,9 +9,12 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+<<<<<<< HEAD
 import java.util.HashMap;
 import java.util.Map;
 import client.Message;
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
 public class CommandHandler implements IHandler {
 
@@ -18,6 +22,7 @@ public class CommandHandler implements IHandler {
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
+<<<<<<< HEAD
     private final Map<String, Command> commandMap = new HashMap<String, Command>();
 
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
@@ -39,7 +44,12 @@ public class CommandHandler implements IHandler {
         commandMap.put("BYE", new ByeCommand());
         // Add more commands as needed
     }
+=======
+    private volatile int batteryMonitorIntervalMs = 1000; // Default 1 second
+    private java.util.Timer batteryMonitorTimer;
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
+    // Initialization step
     private void init() {
         String motorSummary = MotorDetector.getMotorSummary();
         LCD.drawString(motorSummary, 0, 2);
@@ -50,6 +60,15 @@ public class CommandHandler implements IHandler {
         }
     }
 
+    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
+        this.in = in;
+        this.out = out;
+        this.running = running;
+        this.replies = replies;
+        init();
+        startBatteryMonitoring();
+    }
+
     public void run() {
         int replyIndex = 0;
         try {
@@ -58,6 +77,7 @@ public class CommandHandler implements IHandler {
                 String msg = line.trim();
                 Message message = Message.parse(msg);
 
+<<<<<<< HEAD
                 if ("SET_DEBUG".equalsIgnoreCase(message.getType())) {
                     ClientMain.DEBUG = "1".equals(message.getPayload().trim());
                     System.out.println("DEBUG mode set to: " + ClientMain.DEBUG);
@@ -96,17 +116,74 @@ public class CommandHandler implements IHandler {
                         replyIndex++;
                         send(out, Message.construct("REPLY", reply));
                         sendLog("Sent reply: " + reply);
-                    }
+=======
+                // handle control messages
+                if ("BYE".equalsIgnoreCase(msg)) {
+                    say("Bye!", true);
+                    running.set(false);
+                    break;
                 }
+                if ("BEEP".equalsIgnoreCase(msg)) {
+                    Sound.beep();
+                    say("Beep!", true);
+                } else if (msg.toUpperCase().startsWith("MOVE")) {
+                    // MOVE <speed> or MOVE <port> <speed>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 2) {
+                        // MOVE <speed>
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveAllForward(speed);
+                        say("Motors moving at " + speed, false);
+                    } else if (parts.length == 3) {
+                        // MOVE <port> <speed>
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveForward(port, speed);
+                        say("Motor " + port + " moving at " + speed, false);
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
+                    }
+                } else if (msg.toUpperCase().startsWith("BWD")) {
+                    // BWD <port> <speed>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 3) {
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveBackward(port, speed);
+                        say("Motor " + port + " backward at " + speed, false);
+                    }
+                } else if (msg.toUpperCase().startsWith("STOP")) {
+                    // STOP or STOP <port>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 1) {
+                        MotorController.stopAll();
+                        say("Motors stopped", false);
+                    } else if (parts.length == 2) {
+                        char port = parts[1].charAt(0);
+                        MotorController.stop(port);
+                        say("Motor " + port + " stopped", false);
+                    }
+                } else if (msg.length() > 0) {
+                    // Show the server's message
+                    say(msg, false);
+                }
+
+                // auto-reply with a rotating phrase
+                String reply = replies[replyIndex];
+                replyIndex = (replyIndex + 1) % replies.length;
+                send(out, "REPLY: " + reply);
             }
         } catch (IOException e) {
             LCD.drawString("Net error", 0, 3);
             LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
             Sound.buzz();
-            sendLog("Network error: " + e.getMessage());
         }
+        stopBatteryMonitoring();
     }
 
+<<<<<<< HEAD
     // Utility methods for commands to use
     public void send(BufferedWriter out, String line) throws IOException {
         out.write(line);
@@ -120,14 +197,36 @@ public class CommandHandler implements IHandler {
                 send(this.out, "LOG: " + logMsg);
             } catch (IOException e) {
                 // Optionally handle send error
+=======
+    private void send(BufferedWriter out, String line) throws IOException {
+        out.write(line); out.write("\n"); out.flush();
+    }
+
+    // Battery monitoring logic
+    private void startBatteryMonitoring() {
+        batteryMonitorTimer = new java.util.Timer(true);
+        batteryMonitorTimer.scheduleAtFixedRate(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                monitorBattery();
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             }
+        }, 0, batteryMonitorIntervalMs);
+    }
+
+    private void stopBatteryMonitoring() {
+        if (batteryMonitorTimer != null) {
+            batteryMonitorTimer.cancel();
         }
     }
 
-    public void say(String msg, boolean beep) {
-        DisplayUtils.say(msg, beep);
+    public void setBatteryMonitorInterval(int intervalMs) {
+        batteryMonitorIntervalMs = intervalMs;
+        stopBatteryMonitoring();
+        startBatteryMonitoring();
     }
 
+<<<<<<< HEAD
     // Getters for command classes
     public BufferedWriter getOut() {
         return out;
@@ -135,5 +234,19 @@ public class CommandHandler implements IHandler {
 
     public AtomicBoolean getRunning() {
         return running;
+=======
+    private void monitorBattery() {
+        int batteryLevel = Battery.getVoltageMilliVolt();
+        LCD.drawString("Battery: " + batteryLevel + "mV", 0, 5);
+        try {
+            send(out, "BATTERY: " + batteryLevel + "mV");
+        } catch (IOException e) {
+            LCD.drawString("Batt send err", 0, 6);
+        }
+    }
+
+    private void say(String msg, boolean beep) {
+        DisplayUtils.say(msg, beep);
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     }
 }
