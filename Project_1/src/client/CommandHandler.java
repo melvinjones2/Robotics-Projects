@@ -12,17 +12,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 <<<<<<< HEAD
 import java.util.HashMap;
 import java.util.Map;
+<<<<<<< HEAD
 import client.Message;
 =======
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
+=======
+>>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
 
 public class CommandHandler implements IHandler {
-
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+    private volatile boolean debug;
+>>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
     private final Map<String, Command> commandMap = new HashMap<String, Command>();
 
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
@@ -75,38 +81,50 @@ public class CommandHandler implements IHandler {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
                 String msg = line.trim();
-                Message message = Message.parse(msg);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
                 if ("SET_DEBUG".equalsIgnoreCase(message.getType())) {
                     ClientMain.DEBUG = "1".equals(message.getPayload().trim());
                     System.out.println("DEBUG mode set to: " + ClientMain.DEBUG);
                     continue;
+=======
+                // Remove tick/frame suffix if present (e.g., ":123")
+                int colonIdx = msg.lastIndexOf(':');
+                if (colonIdx > 0 && colonIdx < msg.length() - 1) {
+                    String possibleTick = msg.substring(colonIdx + 1);
+                    try {
+                        Integer.parseInt(possibleTick);
+                        msg = msg.substring(0, colonIdx).trim();
+                    } catch (NumberFormatException ignored) {}
+>>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
                 }
+
+                // Normalize whitespace
+                msg = msg.replaceAll("\\s+", " ");
 
                 // Ignore TICK_ACK messages for display
-                if ("TICK_ACK".equals(message.getType())) {
+                if (msg.startsWith("TICK_ACK:")) {
+                    // Optionally handle debug logging here, but do not display
                     continue;
                 }
 
-                // Respond to GET_BATTERY
-                if ("GET_BATTERY".equalsIgnoreCase(message.getType())) {
-                    int voltage = lejos.hardware.Battery.getVoltageMilliVolt();
-                    int current = lejos.hardware.Battery.getCurrentMilliAmp();
-                    int percent = lejos.hardware.Battery.getBatteryLevel();
-                    // Format as: BATTERY: VOLTAGE=7.2 V, CURRENT=0.5 A, LEVEL=80%
-                    String batteryMsg = String.format("BATTERY: VOLTAGE=%.2f V, CURRENT=%.2f A, LEVEL=%d%%",
-                            voltage / 1000.0, current / 1000.0, percent);
-                    send(out, batteryMsg);
+                // Split command and arguments
+                String[] parts = msg.split(" ");
+                String cmdKey = parts[0].toUpperCase();
+
+                // Handle SET_DEBUG:1 style
+                if (cmdKey.startsWith("SET_DEBUG:")) {
+                    String value = cmdKey.substring("SET_DEBUG:".length()).trim();
+                    setDebug("1".equals(value));
+                    sendLog("Debug mode set to " + debug);
                     continue;
                 }
 
-                Command cmd = commandMap.get(message.getType());
+                Command cmd = commandMap.get(cmdKey);
                 if (cmd != null) {
-                    cmd.execute(msg.split(" "), this);
-                    if ("BYE".equalsIgnoreCase(message.getType())) {
-                        break;
-                    }
+                    cmd.execute(parts, this);
+                    if ("BYE".equalsIgnoreCase(cmdKey)) break;
                 } else if (msg.length() > 0) {
                     say(msg, false);
                     sendLog("Displayed message: " + msg);
@@ -114,7 +132,7 @@ public class CommandHandler implements IHandler {
                     if (replies.length > 0) {
                         String reply = replies[replyIndex % replies.length];
                         replyIndex++;
-                        send(out, Message.construct("REPLY", reply));
+                        send(out, "REPLY: " + reply);
                         sendLog("Sent reply: " + reply);
 =======
                 // handle control messages
@@ -186,13 +204,11 @@ public class CommandHandler implements IHandler {
 <<<<<<< HEAD
     // Utility methods for commands to use
     public void send(BufferedWriter out, String line) throws IOException {
-        out.write(line);
-        out.write("\n");
-        out.flush();
+        out.write(line); out.write("\n"); out.flush();
     }
 
     public void sendLog(String logMsg) {
-        if (ClientMain.DEBUG) {
+        if (debug) {
             try {
                 send(this.out, "LOG: " + logMsg);
             } catch (IOException e) {
@@ -228,6 +244,7 @@ public class CommandHandler implements IHandler {
 
 <<<<<<< HEAD
     // Getters for command classes
+<<<<<<< HEAD
     public BufferedWriter getOut() {
         return out;
     }
@@ -249,4 +266,10 @@ public class CommandHandler implements IHandler {
         DisplayUtils.say(msg, beep);
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     }
+=======
+    public BufferedWriter getOut() { return out; }
+    public AtomicBoolean getRunning() { return running; }
+    public void setDebug(boolean debug) { this.debug = debug; }
+    public boolean isDebug() { return debug; }
+>>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
 }

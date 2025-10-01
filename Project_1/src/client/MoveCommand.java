@@ -1,7 +1,6 @@
 package client;
 
 public class MoveCommand implements Command {
-
     public void execute(String[] args, CommandHandler context) {
         if (args.length == 2) {
             // MOVE <speed>

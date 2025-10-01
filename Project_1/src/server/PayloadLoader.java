@@ -10,21 +10,18 @@ import java.lang.reflect.Modifier;
 public class PayloadLoader {
 
     /**
-     * Returns a list of available payload classes in the server.payloads
-     * package. You must manually list them here, or use a config file or
-     * classpath scanning library for full automation.
+     * Returns a list of available payload classes in the server.payloads package.
+     * You must manually list them here, or use a config file or classpath scanning library for full automation.
      */
     public static List<Class<? extends Payload>> discoverPayloads() {
         List<Class<? extends Payload>> payloads = new ArrayList<Class<? extends Payload>>();
         // Manually list your payload classes here:
         try {
             payloads.add(Class.forName("server.BatteryLoggingPayload").asSubclass(Payload.class));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             payloads.add(Class.forName("server.RobotDrawingPayload").asSubclass(Payload.class));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         // Add more payloads as needed
         return payloads;
     }
