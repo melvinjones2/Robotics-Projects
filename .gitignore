@@ -49,6 +49,7 @@ desktop.ini
 !lib/**/*.jar
 !lib/*.jar
 <<<<<<< HEAD
+<<<<<<< HEAD
 Project_1/server_log0.txt
 Project_1/server_log1.txt
 Project_1/server_log2.txt
@@ -67,3 +68,5 @@ Project_1/src/server/.LCKMessage.java~
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 =======
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)

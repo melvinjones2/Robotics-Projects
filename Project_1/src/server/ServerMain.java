@@ -8,16 +8,32 @@ import java.net.ServerSocket;
 import java.net.Socket;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.List;
 =======
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
+=======
+import java.text.SimpleDateFormat;
+import java.util.Date;
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ServerMain {
     private static final int PORT = 9999;
+    private static final int MAX_LOGS = 10;
+    private static BufferedWriter logWriter = null;
+
+    // GUI components
+    private static JTextArea logArea;
+    private static JTextField commandField;
+    private static JButton sendButton;
 
     public static void main(String[] args) {
+<<<<<<< HEAD
         LogManager.rotateLogs();
         final ServerGUI gui = new ServerGUI();
 <<<<<<< HEAD
@@ -42,6 +58,8 @@ public class ServerMain {
     private static JButton sendButton;
 
     public static void main(String[] args) {
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
         // Rotate log files before opening new log
         rotateLogs();
 
@@ -70,6 +88,7 @@ public class ServerMain {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             // Only call setupLogWindow ONCE, now with the correct writer
             gui.setupLogWindow(out);
 
@@ -86,6 +105,9 @@ public class ServerMain {
             gui.setupLogWindow(out);
 
 >>>>>>> parent of 7a1986d (feat: implement motor control interface and battery logging payload; enhance server GUI with payload selection)
+=======
+            // ---- handshake ----
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             send(out, "HELLO");
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 =======
@@ -148,38 +170,22 @@ public class ServerMain {
                                 } else if (msg.startsWith("TICK:")) {
 =======
                             if (msg.startsWith("BATTERY:")) {
-                                LogManager.log("[EV3][BATTERY] " + msg.substring(8).trim());
-                                gui.appendLog(msg, false);
+                                log("[EV3][BATTERY] " + msg.substring(8).trim());
                             } else if (msg.startsWith("REPLY:")) {
-                                LogManager.log("[EV3][REPLY] " + msg.substring(6).trim());
-                                gui.appendLog(msg, false);
+                                log("[EV3][REPLY] " + msg.substring(6).trim());
                             } else if (msg.startsWith("CONTROL:")) {
-                                LogManager.log("[EV3][CONTROL] " + msg.substring(8).trim());
-                                gui.appendLog(msg, false);
+                                log("[EV3][CONTROL] " + msg.substring(8).trim());
                             } else if (msg.startsWith("MOTOR:")) {
-                                LogManager.log("[EV3][MOTOR] " + msg.substring(8).trim());
-                                gui.appendLog(msg, false);
-                            } else if (msg.startsWith("LOG:")) {
-                                LogManager.log("[EV3][LOG] " + msg.substring(4).trim());
-                                gui.appendLog(msg, false);
-                            } else if (msg.startsWith("TICK_ACK:")) {
-                                if (gui.isDebugMode()) {
-                                    LogManager.log("[DEBUG][TICK_ACK] Received " + msg);
-                                    gui.appendLog(msg, true);
-                                }
+                                log("[EV3][MOTOR] " + msg.substring(8).trim());
                             } else if (msg.startsWith("TICK:")) {
                                 int clientTick = Integer.parseInt(msg.split(":")[1].trim());
                                 int serverTick = frameCount.incrementAndGet();
                                 send(outFinal, "TICK_ACK:" + serverTick);
-                                if (gui.isDebugMode()) {
-                                    LogManager.log("[DEBUG][TICK_ACK] Sent TICK_ACK:" + serverTick);
-                                    gui.appendLog("TICK_ACK:" + serverTick, true);
-                                }
                             } else if (msg.startsWith("BYE:")) {
                                 try {
 >>>>>>> parent of 7a1986d (feat: implement motor control interface and battery logging payload; enhance server GUI with payload selection)
                                     int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                                    LogManager.log("[EV3][BYE] Client frame: " + clientTick + ", Server frame: " + frameCount.get());
+                                    log("[EV3][BYE] Client frame: " + clientTick + ", Server frame: " + frameCount.get());
                                     send(outFinal, "BYE_ACK:" + frameCount.get());
                                 } catch (Exception e) {
                                     send(outFinal, "BYE_ACK:" + frameCount.get());
@@ -214,9 +220,13 @@ public class ServerMain {
                                 running.set(false);
                                 break;
                             } else {
+<<<<<<< HEAD
                                 LogManager.log("[EV3][UNKNOWN] " + msg);
                                 gui.appendLog(msg, false);
 >>>>>>> parent of 7a1986d (feat: implement motor control interface and battery logging payload; enhance server GUI with payload selection)
+=======
+                                log("[EV3][UNKNOWN] " + msg);
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
                             }
                             if ("BYE".equalsIgnoreCase(msg)) {
                                 running.set(false);
@@ -254,6 +264,7 @@ public class ServerMain {
         }
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     public static void setPayload(Payload payload) {
@@ -303,6 +314,8 @@ public class ServerMain {
             out.flush();
             LogManager.log("[you] " + msg);
 =======
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     // Rotates server_log0.txt ... server_log9.txt, deleting the oldest and shifting others up
     private static void rotateLogs() {
         try {
@@ -379,16 +392,22 @@ public class ServerMain {
         });
     }
 
+<<<<<<< HEAD
 =======
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
 =======
 >>>>>>> parent of 7a1986d (feat: implement motor control interface and battery logging payload; enhance server GUI with payload selection)
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     private static void send(BufferedWriter out, String line) throws IOException {
         out.write(line);
         out.write("\n");
         out.flush();
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
         log("[you] " + line);
     }
 
@@ -406,6 +425,7 @@ public class ServerMain {
                 logWriter.newLine();
                 logWriter.flush();
             } catch (IOException ignored) {}
+<<<<<<< HEAD
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
         }
 =======
@@ -416,6 +436,8 @@ public class ServerMain {
             LogManager.log("[you] " + line);
         } else {
             LogManager.log("[you] " + line);
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
         }
 >>>>>>> parent of 7a1986d (feat: implement motor control interface and battery logging payload; enhance server GUI with payload selection)
     }

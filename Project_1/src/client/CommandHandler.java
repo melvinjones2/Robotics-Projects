@@ -10,6 +10,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.HashMap;
 import java.util.Map;
 <<<<<<< HEAD
@@ -18,12 +19,15 @@ import client.Message;
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 =======
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
 public class CommandHandler implements IHandler {
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 =======
@@ -50,6 +54,10 @@ public class CommandHandler implements IHandler {
         commandMap.put("BYE", new ByeCommand());
         // Add more commands as needed
     }
+=======
+    private volatile int batteryMonitorIntervalMs = 1000; // Default 1 second
+    private java.util.Timer batteryMonitorTimer;
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 =======
     private volatile int batteryMonitorIntervalMs = 1000; // Default 1 second
     private java.util.Timer batteryMonitorTimer;
@@ -82,6 +90,7 @@ public class CommandHandler implements IHandler {
             while (running.get() && (line = in.readLine()) != null) {
                 String msg = line.trim();
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
                 if ("SET_DEBUG".equalsIgnoreCase(message.getType())) {
@@ -181,6 +190,59 @@ public class CommandHandler implements IHandler {
                     // Show the server's message
                     say(msg, false);
                 }
+=======
+                // handle control messages
+                if ("BYE".equalsIgnoreCase(msg)) {
+                    say("Bye!", true);
+                    running.set(false);
+                    break;
+                }
+                if ("BEEP".equalsIgnoreCase(msg)) {
+                    Sound.beep();
+                    say("Beep!", true);
+                } else if (msg.toUpperCase().startsWith("MOVE")) {
+                    // MOVE <speed> or MOVE <port> <speed>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 2) {
+                        // MOVE <speed>
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveAllForward(speed);
+                        say("Motors moving at " + speed, false);
+                    } else if (parts.length == 3) {
+                        // MOVE <port> <speed>
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveForward(port, speed);
+                        say("Motor " + port + " moving at " + speed, false);
+                    }
+                } else if (msg.toUpperCase().startsWith("BWD")) {
+                    // BWD <port> <speed>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 3) {
+                        char port = parts[1].charAt(0);
+                        int speed = 200;
+                        try { speed = Integer.parseInt(parts[2]); } catch (NumberFormatException ignored) {}
+                        MotorController.moveBackward(port, speed);
+                        say("Motor " + port + " backward at " + speed, false);
+                    }
+                } else if (msg.toUpperCase().startsWith("STOP")) {
+                    // STOP or STOP <port>
+                    String[] parts = msg.split(" ");
+                    if (parts.length == 1) {
+                        MotorController.stopAll();
+                        say("Motors stopped", false);
+                    } else if (parts.length == 2) {
+                        char port = parts[1].charAt(0);
+                        MotorController.stop(port);
+                        say("Motor " + port + " stopped", false);
+                    }
+                } else if (msg.length() > 0) {
+                    // Show the server's message
+                    say(msg, false);
+                }
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
                 // auto-reply with a rotating phrase
                 String reply = replies[replyIndex];
@@ -195,6 +257,7 @@ public class CommandHandler implements IHandler {
         stopBatteryMonitoring();
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     // Utility methods for commands to use
     public void send(BufferedWriter out, String line) throws IOException {
@@ -212,6 +275,12 @@ public class CommandHandler implements IHandler {
         out.write(line); out.write("\n"); out.flush();
     }
 
+=======
+    private void send(BufferedWriter out, String line) throws IOException {
+        out.write(line); out.write("\n"); out.flush();
+    }
+
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     // Battery monitoring logic
     private void startBatteryMonitoring() {
         batteryMonitorTimer = new java.util.Timer(true);
@@ -219,6 +288,9 @@ public class CommandHandler implements IHandler {
             @Override
             public void run() {
                 monitorBattery();
+<<<<<<< HEAD
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
+=======
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             }
         }, 0, batteryMonitorIntervalMs);
@@ -237,6 +309,7 @@ public class CommandHandler implements IHandler {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     // Getters for command classes
 <<<<<<< HEAD
     public BufferedWriter getOut() {
@@ -246,6 +319,8 @@ public class CommandHandler implements IHandler {
     public AtomicBoolean getRunning() {
         return running;
 =======
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     private void monitorBattery() {
         int batteryLevel = Battery.getVoltageMilliVolt();
         LCD.drawString("Battery: " + batteryLevel + "mV", 0, 5);
@@ -258,6 +333,7 @@ public class CommandHandler implements IHandler {
 
     private void say(String msg, boolean beep) {
         DisplayUtils.say(msg, beep);
+<<<<<<< HEAD
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
     }
 =======
@@ -266,4 +342,7 @@ public class CommandHandler implements IHandler {
     public void setDebug(boolean debug) { this.debug = debug; }
     public boolean isDebug() { return debug; }
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
+=======
+    }
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 }

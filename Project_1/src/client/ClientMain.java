@@ -22,12 +22,15 @@ public class ClientMain {
     private static volatile int frameCount = 0;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static volatile boolean running = true;
 =======
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 =======
     private static final boolean DEBUG = false; // Set true to enable client debug logging
 >>>>>>> parent of 47db0d6 (feat: implement message handling and battery logging; enhance debug command functionality)
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
 
     public static void main(String[] args) {
         LCD.clear();
@@ -63,6 +66,7 @@ public class ClientMain {
             // ---- command handling thread ----
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             final String[] replies = new String[]{
 =======
             final String[] replies = new String[] {
@@ -77,6 +81,8 @@ public class ClientMain {
             final CommandHandler command_handler = new CommandHandler(in, out, running, replies);
             Thread commandThread = new Thread(command_handler);
 =======
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             final BufferedReader inFinal = in;
             Thread commandThread = new Thread(new Runnable() {
                 public void run() {
@@ -91,6 +97,9 @@ public class ClientMain {
                     }
                 }
             });
+<<<<<<< HEAD
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
+=======
 >>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
             commandThread.start();
 
@@ -109,8 +118,11 @@ public class ClientMain {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                 frameCount++;
 =======
+=======
+>>>>>>> parent of 3c29b81 (feat: implement command handling system with battery status, movement, and logging capabilities)
                 // Send battery status every 20 ticks (~1 second)
                 if (frameCount % 20 == 0) {
                     double voltage = Battery.getVoltage();
