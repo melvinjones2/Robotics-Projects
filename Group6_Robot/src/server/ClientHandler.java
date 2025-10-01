@@ -6,28 +6,31 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientHandler {
+
     private final Socket client;
     private final ServerGUI gui;
     private final AtomicBoolean running;
     private final AtomicInteger frameCount = new AtomicInteger(0);
+    private final MessageDispatcher dispatcher;
 
     public ClientHandler(Socket client, ServerGUI gui, AtomicBoolean running) {
         this.client = client;
         this.gui = gui;
         this.running = running;
+        this.dispatcher = new MessageDispatcher(gui, running, frameCount);
     }
 
     public void handle() {
         try (
-            BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
-            BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()))
-        ) {
+                BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream())); BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()))) {
             gui.setupLogWindow(out);
 
-            send(out, "HELLO");
+            Server.send(out, "HELLO");
             String resp = in.readLine();
             int clientFrame = handshake(resp);
-            if (clientFrame == -1) return;
+            if (clientFrame == -1) {
+                return;
+            }
 
             LogManager.log("Handshake OK. Type messages (BEEP/ BYE supported).");
 
@@ -47,7 +50,10 @@ public class ClientHandler {
             LogManager.log("Handler error: " + e.getMessage());
         } finally {
             running.set(false);
-            try { client.close(); } catch (IOException ignored) {}
+            try {
+                client.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -69,57 +75,12 @@ public class ClientHandler {
         try {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
-                handleMessage(line.trim(), out);
+                dispatcher.dispatch(line.trim(), out);
             }
         } catch (IOException e) {
-            if (running.get()) LogManager.log("Read error: " + e.getMessage());
-        }
-    }
-
-    private void handleMessage(String msg, BufferedWriter out) throws IOException {
-        if (msg.startsWith("BATTERY:")) {
-            logAndGui("[EV3][BATTERY] ", msg, 8, false);
-        } else if (msg.startsWith("REPLY:")) {
-            logAndGui("[EV3][REPLY] ", msg, 6, false);
-        } else if (msg.startsWith("CONTROL:")) {
-            logAndGui("[EV3][CONTROL] ", msg, 8, false);
-        } else if (msg.startsWith("MOTOR:")) {
-            logAndGui("[EV3][MOTOR] ", msg, 8, false);
-        } else if (msg.startsWith("LOG:")) {
-            logAndGui("[EV3][LOG] ", msg, 4, false);
-        } else if (msg.startsWith("TICK_ACK:")) {
-            if (gui.isDebugMode()) logAndGui("[DEBUG][TICK_ACK] Received ", msg, 0, true);
-        } else if (msg.startsWith("TICK:")) {
-            int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-            int serverTick = frameCount.incrementAndGet();
-            send(out, "TICK_ACK:" + serverTick);
-            if (gui.isDebugMode()) logAndGui("[DEBUG][TICK_ACK] Sent ", "TICK_ACK:" + serverTick, 0, true);
-        } else if (msg.startsWith("BYE:")) {
-            try {
-                int clientTick = Integer.parseInt(msg.split(":")[1].trim());
-                LogManager.log("[EV3][BYE] Client frame: " + clientTick + ", Server frame: " + frameCount.get());
-                send(out, "BYE_ACK:" + frameCount.get());
-            } catch (Exception e) {
-                send(out, "BYE_ACK:" + frameCount.get());
+            if (running.get()) {
+                LogManager.log("Read error: " + e.getMessage());
             }
-            running.set(false);
-        } else {
-            logAndGui("[EV3][UNKNOWN] ", msg, 0, false);
         }
-        if ("BYE".equalsIgnoreCase(msg)) {
-            running.set(false);
-        }
-    }
-
-    private void logAndGui(String prefix, String msg, int skip, boolean debug) {
-        LogManager.log(prefix + msg.substring(skip).trim());
-        gui.appendLog(msg, debug);
-    }
-
-    private void send(BufferedWriter out, String line) throws IOException {
-        out.write(line);
-        out.write("\n");
-        out.flush();
-        LogManager.log("[you] " + line);
     }
 }

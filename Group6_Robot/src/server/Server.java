@@ -4,7 +4,6 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Server {
     private final int port;
@@ -36,5 +35,17 @@ public class Server {
             LogManager.log("Server closed.");
             LogManager.close();
         }
+    }
+
+    public static void send(BufferedWriter out, String line) throws IOException {
+        out.write(line);
+        out.write("\n");
+        out.flush();
+        LogManager.log("[you] " + line);
+    }
+
+    public static void logAndGui(ServerGUI gui, String prefix, String msg, int skip, boolean debug) {
+        LogManager.log(prefix + msg.substring(skip).trim());
+        gui.appendLog(msg, debug);
     }
 }
