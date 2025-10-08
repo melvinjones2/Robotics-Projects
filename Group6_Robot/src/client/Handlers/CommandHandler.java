@@ -6,9 +6,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.freedesktop.dbus.Transport.SASL.Command;
-
 import client.DisplayUtils;
 import client.MotorDetector;
 import client.Interfaces.ICommand;
