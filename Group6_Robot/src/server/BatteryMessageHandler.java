@@ -11,7 +11,8 @@ public class BatteryMessageHandler implements IMessageHandler {
 
     @Override
     public void handle(String msg, BufferedWriter out) {
-        LogManager.log("[EV3][BATTERY] " + msg.substring(8).trim());
-        gui.appendLog(msg, false);
+        String formatted = "[EV3][BATTERY] " + msg.substring(8).trim();
+        LogManager.log(formatted);
+        gui.appendLog(formatted, false);
     }
 }

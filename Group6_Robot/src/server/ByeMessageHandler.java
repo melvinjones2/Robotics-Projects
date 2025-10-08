@@ -17,8 +17,9 @@ public class ByeMessageHandler implements IMessageHandler {
 
     @Override
     public void handle(String msg, BufferedWriter out) {
-        LogManager.log("[EV3][BYE] " + msg.trim());
-        gui.appendLog(msg, false);
+        String formatted = "[EV3][BYE] " + msg.trim();
+        LogManager.log(formatted);
+        gui.appendLog(formatted, false);
         running.set(false);
         frameCount.set(0);
     }

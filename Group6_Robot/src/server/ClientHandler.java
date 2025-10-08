@@ -23,7 +23,7 @@ public class ClientHandler {
     public void handle() {
         try (
                 BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream())); BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()))) {
-            gui.setupLogWindow(out);
+            gui.setupMainWindow(out, frameCount, running);
 
             Server.send(out, "HELLO");
             String resp = in.readLine();
@@ -43,8 +43,6 @@ public class ClientHandler {
             reader.setDaemon(true);
             reader.start();
 
-            gui.setupCommandWindow(out, frameCount, running);
-
             reader.join();
         } catch (IOException | InterruptedException e) {
             LogManager.log("Handler error: " + e.getMessage());
@@ -61,7 +59,7 @@ public class ClientHandler {
         if (resp != null && resp.trim().startsWith("READY:")) {
             try {
                 return Integer.parseInt(resp.trim().split(":")[1]);
-            } catch (Exception e) {
+            } catch (NumberFormatException e) {
                 LogManager.log("Invalid READY frame: " + resp);
                 return -1;
             }

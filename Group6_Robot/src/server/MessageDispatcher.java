@@ -30,6 +30,8 @@ public class MessageDispatcher {
         handlers.put("TICK_ACK:", new TickAckMessageHandler(gui));
         handlers.put("TICK:", new TickMessageHandler(gui, frameCount));
         handlers.put("BYE:", new ByeMessageHandler(gui, running, frameCount));
+        handlers.put("BEEP:", new BeepMessageHandler(gui));
+        handlers.put("BATTERY_LOGGING:", new BatteryLoggingMessageHandler(gui));
     }
 
     public void dispatch(String msg, BufferedWriter out) throws IOException {

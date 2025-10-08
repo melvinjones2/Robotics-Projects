@@ -1,6 +1,8 @@
-package client;
+package client.Handlers;
 
-public class ByeCommand implements Command {
+import client.Interfaces.ICommand;
+
+public class ByeCommand implements ICommand {
     public void execute(String[] args, CommandHandler context) {
         context.say("Bye!", true);
         context.sendLog("Received BYE command");

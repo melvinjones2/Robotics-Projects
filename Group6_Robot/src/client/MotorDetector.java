@@ -40,7 +40,7 @@ public class MotorDetector {
                 if (Math.abs(after - initial) > 0) {
                     status = "OK";
                 }
-            } catch (Exception e) {
+            } catch (InterruptedException e) {
                 status = "ERROR";
             }
             sb.append("MOTOR:").append(ports[i]).append("[").append(status).append("] ");

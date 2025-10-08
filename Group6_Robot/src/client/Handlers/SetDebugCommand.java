@@ -1,6 +1,8 @@
-package client;
+package client.Handlers;
 
-public class SetDebugCommand implements Command {
+import client.Interfaces.ICommand;
+
+public class SetDebugCommand implements ICommand {
     public void execute(String[] args, CommandHandler context) {
         if (args.length == 2) {
             context.setDebug("1".equals(args[1].trim()));

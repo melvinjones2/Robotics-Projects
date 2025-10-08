@@ -1,7 +1,5 @@
 package client;
 
-import client.DisplayUtils;
-import lejos.hardware.Battery;
 import lejos.hardware.Button;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
@@ -12,9 +10,25 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import lejos.hardware.port.Port;
+import lejos.hardware.port.SensorPort;
+import lejos.hardware.sensor.EV3ColorSensor;
+import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.hardware.sensor.EV3TouchSensor;
+import lejos.hardware.sensor.EV3UltrasonicSensor;
+import client.Handlers.CommandHandler;
+import client.Interfaces.ISensor;
+import client.Sensors.GyroSensor;
+import client.Sensors.LightSensor;
+import client.Sensors.TouchSensor;
+import client.Sensors.UltrasonicSensor;
+
 public class ClientMain {
+
     private static final String SERVER_HOST = "10.0.1.8";
     private static final int SERVER_PORT = 9999;
     private static final int TICK_RATE_MS = 50; // 20 ticks per second
@@ -35,7 +49,7 @@ public class ClientMain {
         try {
             sock = new Socket(SERVER_HOST, SERVER_PORT);
             sock.setTcpNoDelay(true);
-            in  = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+            in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
             out = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
 
             // ---- handshake ----
@@ -54,7 +68,7 @@ public class ClientMain {
             Sound.beep();
 
             // ---- command handling thread ----
-            final String[] replies = new String[] {
+            final String[] replies = new String[]{
                 "Hello, human!",
                 "I am EV3.",
                 "Beep boop...",
@@ -65,6 +79,11 @@ public class ClientMain {
             final CommandHandler command_handler = new CommandHandler(in, out, running, replies);
             Thread commandThread = new Thread(command_handler);
             commandThread.start();
+
+            List<ISensor> foundSensors = detectSensors();
+            SensorThread sensorThread = new SensorThread(out, running, foundSensors);
+            Thread sensorThreadObj = new Thread(sensorThread);
+            sensorThreadObj.start();
 
             // Main thread: monitor for ESCAPE button to exit, and tick loop
             while (running.get()) {
@@ -78,27 +97,62 @@ public class ClientMain {
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);
+                if (DEBUG) {
+                    LCD.clear(4);
+                    LCD.drawString("Frame: " + frameCount, 0, 4);
+                }
 
                 frameCount++; // Increment after sending
 
                 // Wait for next tick
                 long elapsed = System.currentTimeMillis() - tickStart;
                 long sleepTime = TICK_RATE_MS - elapsed;
-                if (sleepTime > 0) Thread.sleep(sleepTime);
+                if (sleepTime > 0) {
+                    try {
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        // Ignore
+                    }
+                }
             }
 
-            // Wait for command thread to finish
-            commandThread.join();
+            // Wait for command and sensor threads to finish
+            try {
+                commandThread.join();
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+            sensorThreadObj.interrupt();
+            try {
+                sensorThreadObj.join();
+            } catch (InterruptedException e) {
+                // Ignore
+            }
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             LCD.drawString("Net error", 0, 3);
             LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
             Sound.buzz();
         } finally {
             running.set(false);
-            try { if (in != null) in.close(); } catch (IOException ignored) {}
-            try { if (out != null) out.close(); } catch (IOException ignored) {}
-            try { if (sock != null) sock.close(); } catch (IOException ignored) {}
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (IOException ignored) {
+            }
+            try {
+                if (out != null) {
+                    out.close();
+                }
+            } catch (IOException ignored) {
+            }
+            try {
+                if (sock != null) {
+                    sock.close();
+                }
+            } catch (IOException ignored) {
+            }
 
             LCD.clear();
             LCD.drawString("Disconnected", 0, 2);
@@ -107,6 +161,48 @@ public class ClientMain {
     }
 
     private static void send(BufferedWriter out, String line) throws IOException {
-        out.write(line); out.write("\n"); out.flush();
+        out.write(line);
+        out.write("\n");
+        out.flush();
+    }
+
+    public static List<ISensor> detectSensors() {
+        List<ISensor> sensors = new ArrayList<ISensor>();
+        Port[] ports = {SensorPort.S1, SensorPort.S2, SensorPort.S3, SensorPort.S4};
+
+        for (Port port : ports) {
+            try {
+                // Try Ultrasonic
+                EV3UltrasonicSensor us = new EV3UltrasonicSensor(port);
+                us.close();
+                sensors.add(new UltrasonicSensor(port));
+                continue;
+            } catch (Exception ignored) {}
+
+            try {
+                // Try Touch
+                EV3TouchSensor ts = new EV3TouchSensor(port);
+                ts.close();
+                sensors.add(new TouchSensor(port));
+                continue;
+            } catch (Exception ignored) {}
+
+            try {
+                // Try Gyro
+                EV3GyroSensor gs = new EV3GyroSensor(port);
+                gs.close();
+                sensors.add(new GyroSensor(port));
+                continue;
+            } catch (Exception ignored) {}
+
+            try {
+                // Try Color/Light
+                EV3ColorSensor cs = new EV3ColorSensor(port);
+                cs.close();
+                sensors.add(new LightSensor(port));
+                continue;
+            } catch (Exception ignored) {}
+        }
+        return sensors;
     }
 }

@@ -15,7 +15,8 @@ public class TickMessageHandler implements IMessageHandler {
     @Override
     public void handle(String msg, BufferedWriter out) {
         frameCount.incrementAndGet();
-        LogManager.log("[EV3][TICK] " + msg.substring(4).trim());
-        gui.appendLog(msg, false);
+        String formatted = "[EV3][TICK] " + msg.substring(4).trim();
+        LogManager.log(formatted);
+        //gui.appendLog(formatted, true); // Mark as debug!
     }
 }

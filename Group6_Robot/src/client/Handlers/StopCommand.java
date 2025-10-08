@@ -1,6 +1,9 @@
-package client;
+package client.Handlers;
 
-public class StopCommand implements Command {
+import client.MotorController;
+import client.Interfaces.ICommand;
+
+public class StopCommand implements ICommand {
     public void execute(String[] args, CommandHandler context) {
         if (args.length == 1) {
             MotorController.stopAll();

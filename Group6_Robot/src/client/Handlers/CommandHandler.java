@@ -1,23 +1,30 @@
-package client;
+package client.Handlers;
 
-import lejos.hardware.Battery;
-import lejos.hardware.Sound;
-import lejos.hardware.lcd.LCD;
-import client.DisplayUtils;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.freedesktop.dbus.Transport.SASL.Command;
+
+import client.DisplayUtils;
+import client.MotorDetector;
+import client.Interfaces.ICommand;
+import client.Interfaces.IHandler;
+import lejos.hardware.Sound;
+import lejos.hardware.lcd.LCD;
 
 public class CommandHandler implements IHandler {
+
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final String[] replies;
     private volatile boolean debug;
-    private final Map<String, Command> commandMap = new HashMap<String, Command>();
+    private final Map<String, ICommand> commandMap = new HashMap<String, ICommand>();
+    private volatile Thread currentCommandThread; // Track running command thread
 
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
         this.in = in;
@@ -36,6 +43,8 @@ public class CommandHandler implements IHandler {
         commandMap.put("GET_BATTERY", new BatteryCommand());
         commandMap.put("SET_DEBUG", new SetDebugCommand());
         commandMap.put("BYE", new ByeCommand());
+        commandMap.put("LOG", new LogCommand());
+        commandMap.put("MOVE_AND_LOG", new BatteryLoggingCommand());
         // Add more commands as needed
     }
 
@@ -63,7 +72,8 @@ public class CommandHandler implements IHandler {
                     try {
                         Integer.parseInt(possibleTick);
                         msg = msg.substring(0, colonIdx).trim();
-                    } catch (NumberFormatException ignored) {}
+                    } catch (NumberFormatException ignored) {
+                    }
                 }
 
                 // Normalize whitespace
@@ -81,10 +91,35 @@ public class CommandHandler implements IHandler {
                     continue;
                 }
 
-                Command cmd = commandMap.get(cmdKey);
+                final ICommand cmd = commandMap.get(cmdKey);
                 if (cmd != null) {
-                    cmd.execute(parts, this);
-                    if ("BYE".equalsIgnoreCase(cmdKey)) break;
+                    // If it's a long-running command, run in a separate thread
+                    if ("MOVE_AND_LOG".equalsIgnoreCase(cmdKey)) {
+                        // Interrupt any previous command
+                        if (currentCommandThread != null && currentCommandThread.isAlive()) {
+                            currentCommandThread.interrupt();
+                        }
+                        final String[] cmdParts = parts;
+                        final CommandHandler handler = this;
+                        currentCommandThread = new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                cmd.execute(cmdParts, handler);
+                            }
+                        }, "move-and-log-thread");
+                        currentCommandThread.start();
+                    } else if ("STOP".equalsIgnoreCase(cmdKey)) {
+                        // Interrupt the running command thread
+                        if (currentCommandThread != null && currentCommandThread.isAlive()) {
+                            currentCommandThread.interrupt();
+                        }
+                        cmd.execute(parts, this);
+                    } else {
+                        cmd.execute(parts, this);
+                        if ("BYE".equalsIgnoreCase(cmdKey)) {
+                            break;
+                        }
+                    }
                 } else if (msg.length() > 0) {
                     say(msg, false);
                     sendLog("Displayed message: " + msg);
@@ -107,7 +142,9 @@ public class CommandHandler implements IHandler {
 
     // Utility methods for commands to use
     public void send(BufferedWriter out, String line) throws IOException {
-        out.write(line); out.write("\n"); out.flush();
+        out.write(line);
+        out.write("\n");
+        out.flush();
     }
 
     public void sendLog(String logMsg) {
@@ -125,8 +162,19 @@ public class CommandHandler implements IHandler {
     }
 
     // Getters for command classes
-    public BufferedWriter getOut() { return out; }
-    public AtomicBoolean getRunning() { return running; }
-    public void setDebug(boolean debug) { this.debug = debug; }
-    public boolean isDebug() { return debug; }
+    public BufferedWriter getOut() {
+        return out;
+    }
+
+    public AtomicBoolean getRunning() {
+        return running;
+    }
+
+    public void setDebug(boolean debug) {
+        this.debug = debug;
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
 }

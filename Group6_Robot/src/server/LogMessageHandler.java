@@ -11,7 +11,8 @@ public class LogMessageHandler implements IMessageHandler {
 
     @Override
     public void handle(String msg, BufferedWriter out) {
-        LogManager.log("[EV3][LOG] " + msg.substring(4).trim());
-        gui.appendLog(msg, false);
+        String formatted = "[EV3][LOG] " + msg.substring(4).trim();
+        LogManager.log(formatted);
+        gui.appendLog(formatted, false);
     }
 }
