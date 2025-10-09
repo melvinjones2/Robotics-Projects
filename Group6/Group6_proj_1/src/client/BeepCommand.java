@@ -1,6 +1,5 @@
-package client.Handlers;
+package client;
 
-import client.Interfaces.ICommand;
 import lejos.hardware.Sound;
 
 public class BeepCommand implements ICommand {

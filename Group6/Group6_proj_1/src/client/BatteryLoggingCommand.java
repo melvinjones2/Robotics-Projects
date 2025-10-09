@@ -1,12 +1,10 @@
-package client.Handlers;
+package client;
 
 import lejos.hardware.Battery;
 import lejos.hardware.motor.Motor;
 import lejos.hardware.motor.EV3LargeRegulatedMotor;
 import lejos.hardware.port.MotorPort;
 import java.io.IOException;
-
-import client.Interfaces.ICommand;
 
 public class BatteryLoggingCommand implements ICommand {
     private float batteryLevel;

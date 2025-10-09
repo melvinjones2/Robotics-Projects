@@ -1,10 +1,9 @@
-package client.Sensors;
+package client;
 
 import lejos.hardware.port.Port;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
 import lejos.robotics.SampleProvider;
-import client.Interfaces.ISensor;
 
 public class GyroSensor implements ISensor {
     private EV3GyroSensor sensor;

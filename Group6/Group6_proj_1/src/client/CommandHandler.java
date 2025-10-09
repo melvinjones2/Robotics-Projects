@@ -1,4 +1,4 @@
-package client.Handlers;
+package client;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -6,10 +6,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import client.DisplayUtils;
-import client.MotorDetector;
-import client.Interfaces.ICommand;
-import client.Interfaces.IHandler;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
 

@@ -1,7 +1,4 @@
-package client.Handlers;
-
-import client.MotorController;
-import client.Interfaces.ICommand;
+package client;
 
 public class MoveCommand implements ICommand {
 

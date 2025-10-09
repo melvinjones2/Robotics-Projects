@@ -1,6 +1,4 @@
-package client.Handlers;
-
-import client.Interfaces.ICommand;
+package client;
 
 public class LogCommand implements ICommand {
 

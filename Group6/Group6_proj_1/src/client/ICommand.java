@@ -1,6 +1,4 @@
-package client.Interfaces;
-
-import client.Handlers.CommandHandler;
+package client;
 
 public interface ICommand {
     void execute(String[] args, CommandHandler context);

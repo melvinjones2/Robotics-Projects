@@ -1,4 +1,4 @@
-package client.Interfaces;
+package client;
 
 public interface IHandler extends Runnable {
 }

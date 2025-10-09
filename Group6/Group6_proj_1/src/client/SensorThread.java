@@ -1,6 +1,5 @@
 package client;
 
-import client.Interfaces.ISensor;
 import java.io.BufferedWriter;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;

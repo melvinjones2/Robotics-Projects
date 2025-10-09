@@ -1,9 +1,7 @@
-package client.Handlers;
+package client;
 
 import lejos.hardware.Battery;
 import java.io.IOException;
-
-import client.Interfaces.ICommand;
 
 public class BatteryCommand implements ICommand {
     private float batteryLevel;

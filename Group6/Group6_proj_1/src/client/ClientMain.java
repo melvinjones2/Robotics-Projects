@@ -20,12 +20,6 @@ import lejos.hardware.sensor.EV3ColorSensor;
 import lejos.hardware.sensor.EV3GyroSensor;
 import lejos.hardware.sensor.EV3TouchSensor;
 import lejos.hardware.sensor.EV3UltrasonicSensor;
-import client.Handlers.CommandHandler;
-import client.Interfaces.ISensor;
-import client.Sensors.GyroSensor;
-import client.Sensors.LightSensor;
-import client.Sensors.TouchSensor;
-import client.Sensors.UltrasonicSensor;
 
 public class ClientMain {
 

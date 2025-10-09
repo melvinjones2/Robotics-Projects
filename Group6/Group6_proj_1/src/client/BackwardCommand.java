@@ -1,7 +1,4 @@
-package client.Handlers;
-
-import client.MotorController;
-import client.Interfaces.*;
+package client;
 
 public class BackwardCommand implements ICommand {
     public void execute(String[] args, CommandHandler context) {
