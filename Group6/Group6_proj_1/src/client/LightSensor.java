@@ -32,6 +32,8 @@ public class LightSensor implements ISensor {
             provider = sensor.getAmbientMode();
         } else if ("colorid".equals(this.mode)) {
             provider = sensor.getColorIDMode();
+        } else if ("rgb".equals(this.mode)) {
+        	provider = sensor.getRGBMode();
         } else {
             provider = sensor.getRedMode();
             this.mode = "red";

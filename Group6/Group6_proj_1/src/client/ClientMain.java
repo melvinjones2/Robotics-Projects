@@ -26,7 +26,6 @@ public class ClientMain {
     private static final String SERVER_HOST = "10.0.1.8";
     private static final int SERVER_PORT = 9999;
     private static final int TICK_RATE_MS = 50; // 20 ticks per second
-
     private static volatile int frameCount = 0;
     private static final boolean DEBUG = false; // Set true to enable client debug logging
 
@@ -74,8 +73,23 @@ public class ClientMain {
             Thread commandThread = new Thread(command_handler);
             commandThread.start();
 
-            List<ISensor> foundSensors = detectSensors();
-            SensorThread sensorThread = new SensorThread(out, running, foundSensors);
+            List<ISensor> foundSensors = new ArrayList<>();
+            
+            /////// NEED to FIND A BETTER WAy TO DO THIS
+            try
+            {
+	            foundSensors.add(new UltrasonicSensor(SensorPort.S1, "listen"));
+	            foundSensors.add(new TouchSensor());
+	            foundSensors.add(new LightSensor(SensorPort.S4, "rgb"));
+	            foundSensors.add(new GyroSensor(SensorPort.S3, "rate"));
+            } catch (Exception e)
+            {
+            	out.write(e.toString());
+            }
+            ////////////////////////////////////////////////
+            
+            
+            SensorThread sensorThread = new SensorThread(out, running, foundSensors, frameCount);
             Thread sensorThreadObj = new Thread(sensorThread);
             sensorThreadObj.start();
 
@@ -158,45 +172,5 @@ public class ClientMain {
         out.write(line);
         out.write("\n");
         out.flush();
-    }
-
-    public static List<ISensor> detectSensors() {
-        List<ISensor> sensors = new ArrayList<ISensor>();
-        Port[] ports = {SensorPort.S1, SensorPort.S2, SensorPort.S3, SensorPort.S4};
-
-        for (Port port : ports) {
-            try {
-                // Try Ultrasonic
-                EV3UltrasonicSensor us = new EV3UltrasonicSensor(port);
-                us.close();
-                sensors.add(new UltrasonicSensor(port));
-                continue;
-            } catch (Exception ignored) {}
-
-            try {
-                // Try Touch
-                EV3TouchSensor ts = new EV3TouchSensor(port);
-                ts.close();
-                sensors.add(new TouchSensor(port));
-                continue;
-            } catch (Exception ignored) {}
-
-            try {
-                // Try Gyro
-                EV3GyroSensor gs = new EV3GyroSensor(port);
-                gs.close();
-                sensors.add(new GyroSensor(port));
-                continue;
-            } catch (Exception ignored) {}
-
-            try {
-                // Try Color/Light
-                EV3ColorSensor cs = new EV3ColorSensor(port);
-                cs.close();
-                sensors.add(new LightSensor(port));
-                continue;
-            } catch (Exception ignored) {}
-        }
-        return sensors;
     }
 }

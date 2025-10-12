@@ -1,6 +1,7 @@
 package client;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -10,7 +11,7 @@ public class SensorThread implements Runnable {
     private final AtomicBoolean running;
     private final List<ISensor> sensors;
 
-    public SensorThread(BufferedWriter out, AtomicBoolean running, List<ISensor> sensors) {
+    public SensorThread(BufferedWriter out, AtomicBoolean running, List<ISensor> sensors, int frameCount) {
         this.out = out;
         this.running = running;
         this.sensors = sensors;
@@ -26,6 +27,11 @@ public class SensorThread implements Runnable {
                         out.flush();
                     } catch (java.io.IOException e) {
                         e.printStackTrace();
+                        try {
+							out.write(e.toString());
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
                     }
                 }
             }
