@@ -38,7 +38,7 @@ public class CommandHandler implements IHandler {
         commandMap.put("BYE", new ByeCommand());
         commandMap.put("LOG", new LogCommand());
         commandMap.put("MOVE_AND_LOG", new BatteryLoggingCommand());
-        // Add more commands as needed
+        commandMap.put("ROTATE", new RotateMotorCommand());
     }
 
     private void init() {

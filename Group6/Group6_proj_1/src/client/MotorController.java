@@ -84,4 +84,28 @@ public class MotorController {
             stop(port);
         }
     }
+
+    public static void getMotorLocation(char port) {
+        BaseRegulatedMotor motor = getMotor(port);
+        if (motor != null) {
+            motor.getTachoCount();
+        }
+    }
+
+    public static void rotateArm(char port, int angle) {
+        BaseRegulatedMotor motor = getMotor(port);
+        if (motor != null) {
+            motor.rotate(angle);
+        }
+    }
+
+    public static void moveArmUp() {
+        moveForward('A', 200);
+    }
+
+    public static void moveArmDown() {
+        moveBackward('A', 200);
+    }
+
+
 }
