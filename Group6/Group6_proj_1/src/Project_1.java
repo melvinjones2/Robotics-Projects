@@ -35,14 +35,11 @@ public class Project_1 {
         Thread sensorThread = new Thread(new SensorThread_proj1(lightData, gyroData, running, lightSensor, gyroSensor));
         sensorThread.start();
 
-        // initRotateArmLimits(rotateArm, gyroSensor, MAX_LEFT, MAX_RIGHT);
-        // Kong_Test(rotateArm, rearWheel, liftArm);
-        // testPen(rotateArm, rearWheel, liftArm);
+        Draw_Numbers(rotateArm, rearWheel, liftArm);
+
         //		while ( running.get() ) {
         //			// Main loop can be used to process commands or other tasks
         //		}
-        // Cleanup
-        //sweepingScanAndRewrite(lightSensor, rotateArm, rearWheel, liftArm);
         int[][] pixelGrid = new int[8][8];
         rollingSweepScan(lightSensor, rotateArm, rearWheel, pixelGrid);
         int digit = recognizeDigitFromGrid(pixelGrid);
@@ -187,31 +184,40 @@ public class Project_1 {
         if (verticalCount > rows * 0.7 && topCount < cols * 0.3 && bottomCount < cols * 0.3) {
             return 1; // vertical line only
 
-                }if (topCount > cols * 0.7 && verticalCount < rows * 0.5 && bottomCount < cols * 0.3) {
+        }
+        if (topCount > cols * 0.7 && verticalCount < rows * 0.5 && bottomCount < cols * 0.3) {
             return 7; // top line only
 
-                }if (topCount > cols * 0.7 && bottomCount > cols * 0.7 && leftCount > rows * 0.7 && rightCount > rows * 0.7) {
+        }
+        if (topCount > cols * 0.7 && bottomCount > cols * 0.7 && leftCount > rows * 0.7 && rightCount > rows * 0.7) {
             return 0; // closed loop
 
-                }if (topCount > cols * 0.7 && bottomCount > cols * 0.7 && verticalCount > rows * 0.7) {
+        }
+        if (topCount > cols * 0.7 && bottomCount > cols * 0.7 && verticalCount > rows * 0.7) {
             return 8; // double loop (8)
 
-                }if (topCount > cols * 0.7 && rightCount > rows * 0.7 && bottomCount > cols * 0.7 && leftCount < rows * 0.3) {
+        }
+        if (topCount > cols * 0.7 && rightCount > rows * 0.7 && bottomCount > cols * 0.7 && leftCount < rows * 0.3) {
             return 9; // right loop
 
-                }if (topCount > cols * 0.7 && leftCount > rows * 0.7 && bottomCount > cols * 0.7 && rightCount < rows * 0.3) {
+        }
+        if (topCount > cols * 0.7 && leftCount > rows * 0.7 && bottomCount > cols * 0.7 && rightCount < rows * 0.3) {
             return 6; // left loop
 
-                }if (topCount > cols * 0.7 && verticalCount > rows * 0.3 && bottomCount < cols * 0.3 && rightCount > rows * 0.7) {
+        }
+        if (topCount > cols * 0.7 && verticalCount > rows * 0.3 && bottomCount < cols * 0.3 && rightCount > rows * 0.7) {
             return 2; // top, right, curve
 
-                }if (topCount < cols * 0.3 && bottomCount > cols * 0.7 && leftCount > rows * 0.7 && verticalCount > rows * 0.3) {
+        }
+        if (topCount < cols * 0.3 && bottomCount > cols * 0.7 && leftCount > rows * 0.7 && verticalCount > rows * 0.3) {
             return 5; // bottom, left, curve
 
-                }if (leftCount > rows * 0.7 && verticalCount > rows * 0.3 && topCount < cols * 0.3 && bottomCount < cols * 0.3) {
+        }
+        if (leftCount > rows * 0.7 && verticalCount > rows * 0.3 && topCount < cols * 0.3 && bottomCount < cols * 0.3) {
             return 4; // left and vertical
 
-                }if (topCount > cols * 0.7 && verticalCount > rows * 0.3 && bottomCount > cols * 0.7 && rightCount < rows * 0.3 && leftCount < rows * 0.3) {
+        }
+        if (topCount > cols * 0.7 && verticalCount > rows * 0.3 && bottomCount > cols * 0.7 && rightCount < rows * 0.3 && leftCount < rows * 0.3) {
             return 3; // top, vertical, bottom
         }
         return 8; // fallback if no rule matches
@@ -284,36 +290,7 @@ public class Project_1 {
         liftArm.rotate(-PEN_ANGLE); // Negative angle lifts pen
     }
 
-    public static void testPen(EV3LargeRegulatedMotor rotateArm, NXTRegulatedMotor rearWheel, EV3LargeRegulatedMotor liftArm) {
-        final int PEN_ANGLE = 200;
-        final int PEN_SPEED = 100;
-
-        final int ARM_DRAW_SPEED = 100;
-
-        rotateArm.setSpeed(ARM_DRAW_SPEED);
-        rearWheel.setSpeed(100);
-        penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-
-        // Move arm to starting position
-        rotateArm.rotate(-270);
-
-        // Draw 1
-        rearWheel.rotate(30);
-
-        Delay.msDelay(3000);
-
-        rotateArm.rotate(270);
-        Delay.msDelay(1000);
-        rearWheel.rotate(30);
-
-        rotateArm.rotate(-270);
-        penUp(liftArm, PEN_SPEED, PEN_ANGLE); //shift horizontally down
-        rearWheel.rotate(30);
-        // RECUURSIVE LOOP BELOW
-        // testpen(rotateArm, rearWheel, liftArm);
-    }
-
-    public static void Kong_Test(EV3LargeRegulatedMotor rotateArm, NXTRegulatedMotor rearWheel, EV3LargeRegulatedMotor liftArm) {
+    public static void Draw_Numbers(EV3LargeRegulatedMotor rotateArm, NXTRegulatedMotor rearWheel, EV3LargeRegulatedMotor liftArm) {
         final int PEN_ANGLE = 200;
         final int PEN_SPEED = 100;
 
@@ -350,151 +327,101 @@ public class Project_1 {
         switch (digit) {
             case 0:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rearWheel.rotate(-MED_MOVE); // move back
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE); // move forward
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE); // move left
-                Delay.msDelay(DELAY_MS);
+                moveWheel(rearWheel, -MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 1:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 2:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
-                // rotateArm.rotate(LARGE_MOVE); // move left
-                // Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE); // move back
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE); // move left
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE); // move back
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 3:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(-LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
-                // rotateArm.rotate(LARGE_MOVE); // move left
-                // Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE); // move back
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE); //move left
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE); // move back 
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE); // move left 
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE); // move right
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 4:
-                rotateArm.rotate(LARGE_MOVE);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rearWheel.rotate(SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(2 * SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveWheel(rearWheel, 2 * SMALL_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 5:
-                rotateArm.rotate(-LARGE_MOVE);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 6:
-                rotateArm.rotate(-LARGE_MOVE);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 7:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 8:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-2 * SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -2 * SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
             case 9:
-                rotateArm.rotate(-LARGE_MOVE);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(-LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(-SMALL_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rearWheel.rotate(MED_MOVE);
-                Delay.msDelay(DELAY_MS);
-                rotateArm.rotate(LARGE_MOVE);
-                Delay.msDelay(DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
+                moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
+                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
@@ -503,14 +430,22 @@ public class Project_1 {
                 Delay.msDelay(DELAY_MS);
                 break;
         }
-        rearWheel.rotate(MED_MOVE * 2); // Move to next digit position
-        Delay.msDelay(DELAY_MS);
+        moveWheel(rearWheel, MED_MOVE * 2, DELAY_MS); // Move to next digit position
 
         int currentTacho = rotateArm.getTachoCount();
         int deltaTacho = currentTacho - startTacho;
-        rotateArm.rotate(-deltaTacho); // Return to starting position
-        Delay.msDelay(DELAY_MS);
+        moveArm(rotateArm, -deltaTacho, DELAY_MS); // Return to starting position
         penUp(liftArm, PEN_SPEED, PEN_ANGLE);
+    }
+
+    public static void moveArm(EV3LargeRegulatedMotor rotateArm, int amount, int delay) {
+        rotateArm.rotate(amount);
+        Delay.msDelay(delay);
+    }
+
+    public static void moveWheel(NXTRegulatedMotor rearWheel, int amount, int delay) {
+        rearWheel.rotate(amount);
+        Delay.msDelay(delay);
     }
 
 
