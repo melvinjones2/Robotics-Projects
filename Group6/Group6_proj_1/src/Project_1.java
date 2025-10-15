@@ -35,16 +35,18 @@ public class Project_1 {
         Thread sensorThread = new Thread(new SensorThread_proj1(lightData, gyroData, running, lightSensor, gyroSensor));
         sensorThread.start();
 
+//        Draw_Numbers(rotateArm, rearWheel, liftArm);
+//
+//        //		while ( running.get() ) {
+//        //			// Main loop can be used to process commands or other tasks
+//        //		}
+//        int[][] pixelGrid = new int[8][8];
+//        rollingSweepScan(lightSensor, rotateArm, rearWheel, pixelGrid);
+//        int digit = recognizeDigitFromGrid(pixelGrid);
+//
+//        DrawDigit(digit, 0, 0, rotateArm, rearWheel, liftArm);
+        
         Draw_Numbers(rotateArm, rearWheel, liftArm);
-
-        //		while ( running.get() ) {
-        //			// Main loop can be used to process commands or other tasks
-        //		}
-        int[][] pixelGrid = new int[8][8];
-        rollingSweepScan(lightSensor, rotateArm, rearWheel, pixelGrid);
-        int digit = recognizeDigitFromGrid(pixelGrid);
-
-        DrawDigit(digit, 0, 0, rotateArm, rearWheel, liftArm);
 
         running.set(false);
         try {
@@ -310,8 +312,8 @@ public class Project_1 {
         final int PEN_ANGLE = 200;
         final int PEN_SPEED = 100;
         final int ARM_SPEED = 100;
-        final int SMALL_MOVE = -20 * 2;
-        final int MED_MOVE = -30 * 2;
+        final int SMALL_MOVE = -60;
+        final int MED_MOVE = -30;
         final int LARGE_MOVE = 120 * 2;
         final int DELAY_MS = 1000;
 
@@ -320,9 +322,6 @@ public class Project_1 {
         rearWheel.setSpeed(ARM_SPEED);
         rotateArm.setSpeed(ARM_SPEED);
         liftArm.setSpeed(PEN_SPEED);
-
-        int rotateAngle = col * LARGE_MOVE; // Example calculation, adjust as needed
-        int moveDistance = row * MED_MOVE;  // Example calculation, adjust as needed
 
         switch (digit) {
             case 0:
@@ -351,12 +350,13 @@ public class Project_1 {
                 Delay.msDelay(DELAY_MS);
                 break;
             case 3:
+            	moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
-                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
-                moveWheel(rearWheel, -SMALL_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
@@ -376,9 +376,9 @@ public class Project_1 {
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
                 moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
-                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
-                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 moveArm(rotateArm, LARGE_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
@@ -397,7 +397,7 @@ public class Project_1 {
             case 7:
                 penDown(liftArm, PEN_SPEED, PEN_ANGLE);
                 moveArm(rotateArm, -LARGE_MOVE, DELAY_MS);
-                moveWheel(rearWheel, MED_MOVE, DELAY_MS);
+                moveWheel(rearWheel, SMALL_MOVE, DELAY_MS);
                 penUp(liftArm, PEN_SPEED, PEN_ANGLE);
                 Delay.msDelay(DELAY_MS);
                 break;
