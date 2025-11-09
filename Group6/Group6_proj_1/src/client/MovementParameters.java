@@ -38,7 +38,7 @@ public class MovementParameters {
     
     public static class Builder {
         private Direction direction = Direction.FORWARD;
-        private int speed = 100;
+        private int speed = RobotConfig.DEFAULT_MOTOR_SPEED;
         private char port = '*'; // Default to all motors
         private int distance = -1; // Default to continuous
         private boolean immediateReturn = true;
@@ -49,8 +49,9 @@ public class MovementParameters {
         }
         
         public Builder speed(int speed) {
-            if (speed < 0 || speed > 900) {
-                throw new IllegalArgumentException("Speed must be between 0 and 900");
+            if (speed < RobotConfig.MIN_MOTOR_SPEED || speed > RobotConfig.MAX_MOTOR_SPEED) {
+                throw new IllegalArgumentException("Speed must be between " + 
+                    RobotConfig.MIN_MOTOR_SPEED + " and " + RobotConfig.MAX_MOTOR_SPEED);
             }
             this.speed = speed;
             return this;

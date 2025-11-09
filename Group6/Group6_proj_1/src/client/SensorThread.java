@@ -36,7 +36,7 @@ public class SensorThread implements Runnable {
                 }
             }
             try {
-                Thread.sleep(500); // Adjust as needed
+                Thread.sleep(RobotConfig.SENSOR_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 break;
             }

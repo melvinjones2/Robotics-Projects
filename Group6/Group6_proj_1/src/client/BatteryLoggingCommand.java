@@ -64,13 +64,15 @@ public class BatteryLoggingCommand implements ICommand {
             int count = CommandParser.parseInt(args[2], "count");
             int interval = CommandParser.parseInt(args[3], "interval");
             
-            if (count < 1 || count > 100) {
-                context.say("Count must be 1-100", false);
+            if (count < RobotConfig.MIN_LOG_COUNT || count > RobotConfig.MAX_LOG_COUNT) {
+                context.say("Count must be " + RobotConfig.MIN_LOG_COUNT + 
+                    "-" + RobotConfig.MAX_LOG_COUNT, false);
                 return;
             }
             
-            if (interval < 100 || interval > 10000) {
-                context.say("Interval must be 100-10000 ms", false);
+            if (interval < RobotConfig.MIN_LOG_INTERVAL_MS || interval > RobotConfig.MAX_LOG_INTERVAL_MS) {
+                context.say("Interval must be " + RobotConfig.MIN_LOG_INTERVAL_MS + 
+                    "-" + RobotConfig.MAX_LOG_INTERVAL_MS + " ms", false);
                 return;
             }
             

@@ -23,11 +23,7 @@ import lejos.hardware.sensor.EV3UltrasonicSensor;
 
 public class ClientMain {
 
-    private static final String SERVER_HOST = "10.0.1.8";
-    private static final int SERVER_PORT = 9999;
-    private static final int TICK_RATE_MS = 50; // 20 ticks per second
     private static volatile int frameCount = 0;
-    private static final boolean DEBUG = false; // Set true to enable client debug logging
 
     public static void main(String[] args) {
         LCD.clear();
@@ -40,7 +36,7 @@ public class ClientMain {
         final AtomicBoolean running = new AtomicBoolean(true);
 
         try {
-            sock = new Socket(SERVER_HOST, SERVER_PORT);
+            sock = new Socket(RobotConfig.SERVER_HOST, RobotConfig.SERVER_PORT);
             sock.setTcpNoDelay(true);
             in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
             out = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
@@ -57,7 +53,7 @@ public class ClientMain {
 
             LCD.clear();
             LCD.drawString("Connected", 0, 0);
-            LCD.drawString(SERVER_HOST + ":" + SERVER_PORT, 0, 1);
+            LCD.drawString(RobotConfig.SERVER_HOST + ":" + RobotConfig.SERVER_PORT, 0, 1);
             Sound.beep();
 
             // ---- command handling thread ----
@@ -94,7 +90,7 @@ public class ClientMain {
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);
-                if (DEBUG) {
+                if (RobotConfig.DEBUG) {
                     LCD.clear(4);
                     LCD.drawString("Frame: " + frameCount, 0, 4);
                 }
@@ -103,7 +99,7 @@ public class ClientMain {
 
                 // Wait for next tick
                 long elapsed = System.currentTimeMillis() - tickStart;
-                long sleepTime = TICK_RATE_MS - elapsed;
+                long sleepTime = RobotConfig.TICK_RATE_MS - elapsed;
                 if (sleepTime > 0) {
                     try {
                         Thread.sleep(sleepTime);

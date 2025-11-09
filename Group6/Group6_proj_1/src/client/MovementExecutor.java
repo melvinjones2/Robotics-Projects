@@ -2,13 +2,8 @@ package client;
 
 import lejos.hardware.motor.BaseRegulatedMotor;
 
-/**
- * Enhanced motor controller with support for advanced movement operations.
- * Provides smooth acceleration, precise distance control, and synchronized multi-motor movements.
- */
+// Enhanced motor controller with synchronized multi-motor movements
 public class MovementExecutor {
-    
-    private static final int DEFAULT_ACCELERATION = 200;
     
     /**
      * Execute a movement command based on the provided parameters.
@@ -32,16 +27,17 @@ public class MovementExecutor {
     private static void executeAllMotors(MovementParameters params) {
         BaseRegulatedMotor[] motors = MotorFactory.getAllMotors();
         
+        // Configure all motors first
         for (BaseRegulatedMotor motor : motors) {
             if (motor != null) {
                 configureMotor(motor, params);
             }
         }
         
-        // Execute synchronized movement
+        // Start all motors simultaneously (non-blocking)
         for (BaseRegulatedMotor motor : motors) {
             if (motor != null) {
-                executeMotorDirection(motor, params);
+                startMotorDirection(motor, params, true); // true = non-blocking
             }
         }
     }
@@ -56,7 +52,7 @@ public class MovementExecutor {
         }
         
         configureMotor(motor, params);
-        executeMotorDirection(motor, params);
+        startMotorDirection(motor, params, params.isImmediateReturn());
     }
     
     /**
@@ -64,20 +60,20 @@ public class MovementExecutor {
      */
     private static void configureMotor(BaseRegulatedMotor motor, MovementParameters params) {
         motor.setSpeed(params.getSpeed());
-        motor.setAcceleration(DEFAULT_ACCELERATION);
+        motor.setAcceleration(RobotConfig.DEFAULT_MOTOR_ACCELERATION);
     }
     
     /**
-     * Execute the directional movement on a motor.
+     * Start the directional movement on a motor.
+     * @param immediateReturn true for non-blocking movement
      */
-    private static void executeMotorDirection(BaseRegulatedMotor motor, MovementParameters params) {
+    private static void startMotorDirection(BaseRegulatedMotor motor, MovementParameters params, boolean immediateReturn) {
         int distance = params.getDistance();
-        boolean blocking = !params.isImmediateReturn();
         
         switch (params.getDirection()) {
             case FORWARD:
                 if (distance > 0) {
-                    motor.rotate(distance, !blocking);
+                    motor.rotate(distance, immediateReturn);
                 } else {
                     motor.forward();
                 }
@@ -85,40 +81,63 @@ public class MovementExecutor {
                 
             case BACKWARD:
                 if (distance > 0) {
-                    motor.rotate(-distance, !blocking);
+                    motor.rotate(-distance, immediateReturn);
                 } else {
                     motor.backward();
                 }
                 break;
                 
             case LEFT:
-                // For differential drive: left = right motor forward, left motor backward
-                if (motor == MotorFactory.getMotor('B') || motor == MotorFactory.getMotor('C')) {
-                    motor.forward();
+                // Left motors from config
+                for (char port : RobotConfig.LEFT_MOTORS) {
+                    if (motor == MotorFactory.getMotor(port)) {
+                        motor.forward();
+                        break;
+                    }
                 }
                 break;
                 
             case RIGHT:
-                // For differential drive: right = left motor forward, right motor backward
-                if (motor == MotorFactory.getMotor('A') || motor == MotorFactory.getMotor('D')) {
-                    motor.forward();
+                // Right motors from config
+                for (char port : RobotConfig.RIGHT_MOTORS) {
+                    if (motor == MotorFactory.getMotor(port)) {
+                        motor.forward();
+                        break;
+                    }
                 }
                 break;
                 
             case STOP:
-                motor.stop();
+                motor.stop(true); // Immediate stop
                 break;
         }
     }
     
     /**
-     * Stop motors based on parameters.
+     * Stop motors based on parameters - synchronized stop.
      */
     private static void executeStop(MovementParameters params) {
         if (params.isAllMotors()) {
-            MotorFactory.stopAll();
+            stopAllSynchronized();
         } else {
-            MotorController.stop(params.getPort());
+            BaseRegulatedMotor motor = MotorFactory.getMotor(params.getPort());
+            if (motor != null) {
+                motor.stop(true);
+            }
+        }
+    }
+    
+    /**
+     * Stop all motors simultaneously.
+     */
+    public static void stopAllSynchronized() {
+        BaseRegulatedMotor[] motors = MotorFactory.getAllMotors();
+        
+        // Issue stop command to all motors at once (non-blocking)
+        for (BaseRegulatedMotor motor : motors) {
+            if (motor != null) {
+                motor.stop(true); // Immediate stop
+            }
         }
     }
     
@@ -126,12 +145,6 @@ public class MovementExecutor {
      * Emergency stop - immediate stop all motors.
      */
     public static void emergencyStop() {
-        BaseRegulatedMotor[] motors = MotorFactory.getAllMotors();
-        
-        for (BaseRegulatedMotor motor : motors) {
-            if (motor != null) {
-                motor.stop(true); // Immediate stop
-            }
-        }
+        stopAllSynchronized();
     }
 }

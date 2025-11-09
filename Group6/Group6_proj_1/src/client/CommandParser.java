@@ -70,8 +70,9 @@ public class CommandParser {
     // Validate speed parameter
     public static int parseSpeed(String value) throws IllegalArgumentException {
         int speed = parseInt(value, "speed");
-        if (speed < 0 || speed > 900) {
-            throw new IllegalArgumentException("Speed must be between 0 and 900");
+        if (speed < RobotConfig.MIN_MOTOR_SPEED || speed > RobotConfig.MAX_MOTOR_SPEED) {
+            throw new IllegalArgumentException("Speed must be between " + 
+                RobotConfig.MIN_MOTOR_SPEED + " and " + RobotConfig.MAX_MOTOR_SPEED);
         }
         return speed;
     }

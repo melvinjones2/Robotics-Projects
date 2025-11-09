@@ -12,8 +12,9 @@ public class BeepCommand implements ICommand {
         if (args.length > 1) {
             try {
                 count = CommandParser.parseInt(args[1], "count");
-                if (count < 1 || count > 10) {
-                    context.say("Count must be 1-10", false);
+                if (count < RobotConfig.MIN_BEEP_COUNT || count > RobotConfig.MAX_BEEP_COUNT) {
+                    context.say("Count must be " + RobotConfig.MIN_BEEP_COUNT + 
+                        "-" + RobotConfig.MAX_BEEP_COUNT, false);
                     return;
                 }
             } catch (IllegalArgumentException e) {
@@ -26,7 +27,7 @@ public class BeepCommand implements ICommand {
             Sound.beep();
             if (i < count - 1) {
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(RobotConfig.BEEP_DELAY_MS);
                 } catch (InterruptedException e) {
                     break;
                 }

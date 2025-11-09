@@ -42,20 +42,44 @@ public class MotorController {
     }
 
     /**
-     * Moves all motors forward at the given speed.
+     * Moves all motors forward at the given speed - synchronized start.
      */
     public static void moveAllForward(int speed) {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
-            moveForward(port, speed);
+        BaseRegulatedMotor[] motors = MotorFactory.getAllMotors();
+        
+        // Set speed for all motors
+        for (BaseRegulatedMotor motor : motors) {
+            if (motor != null) {
+                motor.setSpeed(speed);
+            }
+        }
+        
+        // Start all motors simultaneously
+        for (BaseRegulatedMotor motor : motors) {
+            if (motor != null) {
+                motor.forward();
+            }
         }
     }
 
     /**
-     * Moves all motors backward at the given speed.
+     * Moves all motors backward at the given speed - synchronized start.
      */
     public static void moveAllBackward(int speed) {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
-            moveBackward(port, speed);
+        BaseRegulatedMotor[] motors = MotorFactory.getAllMotors();
+        
+        // Set speed for all motors
+        for (BaseRegulatedMotor motor : motors) {
+            if (motor != null) {
+                motor.setSpeed(speed);
+            }
+        }
+        
+        // Start all motors simultaneously
+        for (BaseRegulatedMotor motor : motors) {
+            if (motor != null) {
+                motor.backward();
+            }
         }
     }
 
@@ -81,11 +105,11 @@ public class MotorController {
     }
 
     public static void moveArmUp() {
-        moveForward('A', 200);
+        moveForward(RobotConfig.ARM_MOTOR_PORT, RobotConfig.ARM_SPEED);
     }
 
     public static void moveArmDown() {
-        moveBackward('A', 200);
+        moveBackward(RobotConfig.ARM_MOTOR_PORT, RobotConfig.ARM_SPEED);
     }
 
 

@@ -2,7 +2,7 @@ package client;
 
 import lejos.hardware.port.Port;
 
-// Holds configuration for a sensor instance
+// Configuration for a sensor instance
 public class SensorConfig {
     public enum SensorType {
         TOUCH, ULTRASONIC, LIGHT, GYRO
