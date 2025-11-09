@@ -1,41 +1,35 @@
 package client;
 
+// Legacy command - use UnifiedMoveCommand instead
 public class MoveCommand implements ICommand {
 
+    @Override
     public void execute(String[] args, CommandHandler context) {
-        switch (args.length) {
-            case 2:
-                {
+        try {
+            switch (args.length) {
+                case 2:
                     // MOVE <speed>
-                    int speed;
-                    try {
-                        speed = Integer.parseInt(args[1]);
-                    } catch (NumberFormatException e) {
-                        context.say("Invalid speed: " + args[1], false);
-                        return;
-                    }       MotorController.moveAllForward(speed);
+                    int speed = CommandParser.parseSpeed(args[1]);
+                    MotorController.moveAllForward(speed);
                     context.say("Motors moving at " + speed, false);
                     context.sendLog("Move all motors at speed " + speed);
                     break;
-                }
-            case 3:
-                {
+                    
+                case 3:
                     // MOVE <port> <speed>
-                    char port = args[1].charAt(0);
-                    int speed;
-                    try {
-                        speed = Integer.parseInt(args[2]);
-                    } catch (NumberFormatException e) {
-                        context.say("Invalid speed: " + args[2], false);
-                        return;
-                    }       MotorController.moveForward(port, speed);
+                    char port = CommandParser.parsePort(args[1]);
+                    speed = CommandParser.parseSpeed(args[2]);
+                    MotorController.moveForward(port, speed);
                     context.say("Motor " + port + " moving at " + speed, false);
                     context.sendLog("Move motor " + port + " at speed " + speed);
                     break;
-                }
-            default:
-                context.say("Usage: MOVE <speed> or MOVE <port> <speed>", false);
-                break;
+                    
+                default:
+                    context.say("Usage: MOVE <speed> or MOVE <port> <speed>", false);
+                    break;
+            }
+        } catch (IllegalArgumentException e) {
+            context.say("Error: " + e.getMessage(), false);
         }
     }
 }

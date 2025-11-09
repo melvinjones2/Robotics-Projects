@@ -73,21 +73,10 @@ public class ClientMain {
             Thread commandThread = new Thread(command_handler);
             commandThread.start();
 
-            List<ISensor> foundSensors = new ArrayList<>();
-            
-            /////// NEED to FIND A BETTER WAy TO DO THIS
-            try
-            {
-	            foundSensors.add(new UltrasonicSensor(SensorPort.S1, "listen"));
-	            foundSensors.add(new TouchSensor());
-	            foundSensors.add(new LightSensor(SensorPort.S4, "rgb"));
-	            foundSensors.add(new GyroSensor(SensorPort.S3, "rate"));
-            } catch (Exception e)
-            {
-            	out.write(e.toString());
-            }
-            ////////////////////////////////////////////////
-            
+            // Use unified sensor factory with default config
+            List<ISensor> foundSensors = SensorFactory.createSensors(
+                SensorFactory.getDefaultSensorConfig()
+            );
             
             SensorThread sensorThread = new SensorThread(out, running, foundSensors, frameCount);
             Thread sensorThreadObj = new Thread(sensorThread);

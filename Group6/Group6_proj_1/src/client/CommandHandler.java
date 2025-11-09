@@ -29,9 +29,20 @@ public class CommandHandler implements IHandler {
     }
 
     private void registerCommands() {
+        // Use unified movement command for better control
+        UnifiedMoveCommand moveCmd = new UnifiedMoveCommand();
+        
         commandMap.put("BEEP", new BeepCommand());
-        commandMap.put("MOVE", new MoveCommand());
-        commandMap.put("BWD", new BackwardCommand());
+        commandMap.put("MOVE", moveCmd);
+        commandMap.put("FWD", moveCmd);
+        commandMap.put("FORWARD", moveCmd);
+        commandMap.put("BWD", moveCmd);
+        commandMap.put("BACKWARD", moveCmd);
+        commandMap.put("BACK", moveCmd);
+        commandMap.put("LEFT", moveCmd);
+        commandMap.put("TURNLEFT", moveCmd);
+        commandMap.put("RIGHT", moveCmd);
+        commandMap.put("TURNRIGHT", moveCmd);
         commandMap.put("STOP", new StopCommand());
         commandMap.put("GET_BATTERY", new BatteryCommand());
         commandMap.put("SET_DEBUG", new SetDebugCommand());
@@ -56,30 +67,14 @@ public class CommandHandler implements IHandler {
         try {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
-                String msg = line.trim();
+                // Use unified parser
+                CommandParser.ParsedCommand parsed = CommandParser.parse(line);
+                String cmdKey = parsed.getCommand();
+                String[] parts = parsed.getArgs();
 
-                // Remove tick/frame suffix if present (e.g., ":123")
-                int colonIdx = msg.lastIndexOf(':');
-                if (colonIdx > 0 && colonIdx < msg.length() - 1) {
-                    String possibleTick = msg.substring(colonIdx + 1);
-                    try {
-                        Integer.parseInt(possibleTick);
-                        msg = msg.substring(0, colonIdx).trim();
-                    } catch (NumberFormatException ignored) {
-                    }
-                }
-
-                // Normalize whitespace
-                msg = msg.replaceAll("\\s+", " ");
-
-                // Split command and arguments
-                String[] parts = msg.split(" ");
-                String cmdKey = parts[0].toUpperCase();
-
-                // Handle SET_DEBUG:1 style
-                if (cmdKey.startsWith("SET_DEBUG:")) {
-                    String value = cmdKey.substring("SET_DEBUG:".length()).trim();
-                    setDebug("1".equals(value));
+                // Handle SET_DEBUG specially
+                if (cmdKey.equals("SET_DEBUG") && parts.length > 1) {
+                    setDebug("1".equals(parts[1]));
                     sendLog("Debug mode set to " + debug);
                     continue;
                 }
@@ -113,9 +108,9 @@ public class CommandHandler implements IHandler {
                             break;
                         }
                     }
-                } else if (msg.length() > 0) {
-                    say(msg, false);
-                    sendLog("Displayed message: " + msg);
+                } else if (cmdKey.length() > 0) {
+                    say(line.trim(), false);
+                    sendLog("Displayed message: " + line.trim());
                 } else {
                     if (replies.length > 0) {
                         String reply = replies[replyIndex % replies.length];
@@ -126,9 +121,7 @@ public class CommandHandler implements IHandler {
                 }
             }
         } catch (IOException e) {
-            LCD.drawString("Net error", 0, 3);
-            LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
-            Sound.buzz();
+            say("Net error", false);
             sendLog("Network error: " + e.getMessage());
         }
     }

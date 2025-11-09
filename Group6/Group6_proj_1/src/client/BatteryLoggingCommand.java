@@ -1,26 +1,18 @@
 package client;
 
 import lejos.hardware.Battery;
-import lejos.hardware.motor.Motor;
-import lejos.hardware.motor.EV3LargeRegulatedMotor;
-import lejos.hardware.port.MotorPort;
+import lejos.hardware.motor.BaseRegulatedMotor;
 import java.io.IOException;
 
 public class BatteryLoggingCommand implements ICommand {
-    private float batteryLevel;
-    private float voltageLevel;
-    private float batteryCurrent;
-    private float motorCurrent;
-
-    public BatteryLoggingCommand() {
-        this.batteryLevel = Battery.getVoltageMilliVolt();
-        this.voltageLevel = Battery.getVoltage();
-        this.batteryCurrent = Battery.getBatteryCurrent();
-        this.motorCurrent = Battery.getMotorCurrent();
-    }
 
     public void moveAndLog(int speed, int logCount, int intervalMs, CommandHandler context) {
-        EV3LargeRegulatedMotor motorA = new EV3LargeRegulatedMotor(MotorPort.A);
+        BaseRegulatedMotor motorA = MotorFactory.getMotor('A');
+        if (motorA == null) {
+            context.say("Motor A not available", false);
+            return;
+        }
+        
         try {
             motorA.setSpeed(speed);
             motorA.forward();
@@ -31,13 +23,12 @@ public class BatteryLoggingCommand implements ICommand {
                     context.sendLog("MoveAndLog interrupted!");
                     break;
                 }
-                // Update battery readings
-                batteryLevel = Battery.getVoltageMilliVolt();
-                voltageLevel = Battery.getVoltage();
-                batteryCurrent = Battery.getBatteryCurrent();
-                motorCurrent = Battery.getMotorCurrent();
+                
+                float batteryLevel = Battery.getVoltageMilliVolt();
+                float voltageLevel = Battery.getVoltage();
+                float batteryCurrent = Battery.getBatteryCurrent();
+                float motorCurrent = Battery.getMotorCurrent();
 
-                // Send battery log
                 context.send(context.getOut(), "BATTERY: " + batteryLevel + "mV"
                         + ", Voltage: " + voltageLevel + "V"
                         + ", Battery Current: " + batteryCurrent + "mA"
@@ -57,57 +48,36 @@ public class BatteryLoggingCommand implements ICommand {
         } finally {
             motorA.stop();
             context.sendLog("Motor stopped.");
-            motorA.close();
         }
     }
 
     @Override
     public void execute(String[] args, CommandHandler context) {
+        // MOVE_AND_LOG <speed> <count> <interval_ms>
         try {
-            context.send(context.getOut(), "BATTERY: " + batteryLevel + "mV"
-                    + ", Voltage: " + voltageLevel + "V"
-                    + ", Battery Current: " + batteryCurrent + "mA"
-                    + ", Motor Current: " + motorCurrent + "mA");
-
-            context.sendLog("Battery level sent: " + batteryLevel + "mV"
-                    + ", Voltage: " + voltageLevel + "V"
-                    + ", Battery Current: " + batteryCurrent + "mA"
-                    + ", Motor Current: " + motorCurrent + "mA");
-        } catch (IOException e) {
-            context.say("Batt send err", false);
+            if (args.length < 4) {
+                context.say("Usage: MOVE_AND_LOG <speed> <count> <interval_ms>", false);
+                return;
+            }
+            
+            int speed = CommandParser.parseSpeed(args[1]);
+            int count = CommandParser.parseInt(args[2], "count");
+            int interval = CommandParser.parseInt(args[3], "interval");
+            
+            if (count < 1 || count > 100) {
+                context.say("Count must be 1-100", false);
+                return;
+            }
+            
+            if (interval < 100 || interval > 10000) {
+                context.say("Interval must be 100-10000 ms", false);
+                return;
+            }
+            
+            moveAndLog(speed, count, interval, context);
+            
+        } catch (IllegalArgumentException e) {
+            context.say("Error: " + e.getMessage(), false);
         }
     }
-
-    public float getBatteryLevel() {
-        return batteryLevel;
-    }
-
-    public void setBatteryLevel(float batteryLevel) {
-        this.batteryLevel = batteryLevel;
-    }
-
-    public float getVoltageLevel() {
-        return voltageLevel;
-    }
-
-    public void setVoltageLevel(float voltageLevel) {
-        this.voltageLevel = voltageLevel;
-    }
-
-    public float getBatteryCurrent() {
-        return batteryCurrent;
-    }
-
-    public void setBatteryCurrent(float batteryCurrent) {
-        this.batteryCurrent = batteryCurrent;
-    }
-
-    public float getMotorCurrent() {
-        return motorCurrent;
-    }
-
-    public void setMotorCurrent(float motorCurrent) {
-        this.motorCurrent = motorCurrent;
-    }
-
 }

@@ -1,29 +1,12 @@
 package client;
 
 import lejos.hardware.motor.BaseRegulatedMotor;
-import lejos.hardware.motor.Motor;
 
-/**
- * Provides generic motor movement for debugging.
- */
-/**
- * Usage in CommandHandler:
- *
- * MOVE <speed>            // Move all motors forward at <speed>
- * MOVE <port> <speed>     // Move one motor forward (A/B/C/D) at <speed>
- * BWD <port> <speed>      // Move one motor backward (A/B/C/D) at <speed>
- * STOP                    // Stop all motors
- * STOP <port>             // Stop one motor (A/B/C/D)
- */
+// High-level motor control operations using MotorFactory
 public class MotorController {
+    
     public static BaseRegulatedMotor getMotor(char port) {
-        switch (Character.toUpperCase(port)) {
-            case 'A': return Motor.A;
-            case 'B': return Motor.B;
-            case 'C': return Motor.C;
-            case 'D': return Motor.D;
-            default: return null;
-        }
+        return MotorFactory.getMotor(port);
     }
 
     /**
@@ -80,9 +63,7 @@ public class MotorController {
      * Stops all motors.
      */
     public static void stopAll() {
-        for (char port : new char[]{'A', 'B', 'C', 'D'}) {
-            stop(port);
-        }
+        MotorFactory.stopAll();
     }
 
     public static void getMotorLocation(char port) {
