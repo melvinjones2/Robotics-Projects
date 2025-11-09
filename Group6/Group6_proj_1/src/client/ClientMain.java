@@ -1,5 +1,13 @@
 package client;
 
+import client.config.RobotConfig;
+import client.network.CommandHandler;
+import client.safety.AutonomousMode;
+import client.sensor.ISensor;
+import client.sensor.SensorFactory;
+import client.sensor.SensorThread;
+import client.sensor.data.SensorDataStore;
+import client.util.DisplayUtils;
 import lejos.hardware.Button;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;

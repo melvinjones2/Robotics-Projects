@@ -5,6 +5,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import server.client.ClientHandler;
+import server.gui.ServerGUI;
+import server.logging.LogLevel;
+import server.logging.LogManager;
+
 public class Server {
     private final int port;
     private ServerSocket serverSocket;
