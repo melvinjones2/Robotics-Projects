@@ -37,11 +37,18 @@ public class UltrasonicSensor implements ISensor {
         sample = new float[provider.sampleSize()];
     }
 
+    @Override
+    public String getName() {
+        return "ultrasonic";
+    }
+
+    @Override
     public String readValue() {
         provider.fetchSample(sample, 0);
         return "SENSOR:US:" + mode.toUpperCase() + ":" + sample[0];
     }
 
+    @Override
     public void close() {
         sensor.close();
     }

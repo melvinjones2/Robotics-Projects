@@ -37,11 +37,18 @@ public class GyroSensor implements ISensor {
         sample = new float[provider.sampleSize()];
     }
 
+    @Override
+    public String getName() {
+        return "gyro";
+    }
+
+    @Override
     public String readValue() {
         provider.fetchSample(sample, 0);
         return "SENSOR:GYRO:" + mode.toUpperCase() + ":" + sample[0];
     }
 
+    @Override
     public void close() {
         sensor.close();
     }

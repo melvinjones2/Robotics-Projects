@@ -21,6 +21,16 @@ public class MessageDispatcher {
         initHandlers();
     }
 
+    private ServerAutonomousController autonomousController;
+    
+    public void setAutonomousController(ServerAutonomousController controller) {
+        this.autonomousController = controller;
+        // Re-init handlers to include sensor handler
+        if (controller != null) {
+            handlers.put("SENSOR:", new SensorMessageHandler(controller));
+        }
+    }
+    
     private void initHandlers() {
         handlers.put("BATTERY:", new BatteryMessageHandler(gui));
         handlers.put("REPLY:", new ReplyMessageHandler(gui));
@@ -43,11 +53,12 @@ public class MessageDispatcher {
                 entry.getValue().handle(msg, out);
                 handled = true;
                 
-                // Send ACK for commands (not for TICK, LOG, BATTERY, REPLY)
+                // Send ACK for commands (not for TICK, LOG, BATTERY, REPLY, SENSOR)
                 String key = entry.getKey();
                 isCommand = !key.equals("TICK:") && !key.equals("TICK_ACK:") && 
                            !key.equals("LOG:") && !key.equals("BATTERY:") && 
-                           !key.equals("REPLY:") && !key.equals("BATTERY_LOGGING:");
+                           !key.equals("REPLY:") && !key.equals("BATTERY_LOGGING:") &&
+                           !key.equals("SENSOR:");
                 
                 if (isCommand) {
                     sendCommandAck(msg, out);

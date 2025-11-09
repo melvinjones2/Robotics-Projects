@@ -20,11 +20,18 @@ public class TouchSensor implements ISensor {
         sample = new float[provider.sampleSize()];
     }
 
+    @Override
+    public String getName() {
+        return "touch";
+    }
+
+    @Override
     public String readValue() {
         provider.fetchSample(sample, 0);
         return "SENSOR:TOUCH:" + ((sample[0] > 0) ? "PRESSED" : "RELEASED");
     }
 
+    @Override
     public void close() {
         sensor.close();
     }

@@ -87,9 +87,9 @@ public class SensorFactory {
     public static List<SensorConfig> getDefaultSensorConfig() {
         List<SensorConfig> configs = new ArrayList<>();
         configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S1, "listen"));
-        configs.add(new SensorConfig(SensorConfig.SensorType.TOUCH, SensorPort.S2));
+        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S2, "rgb")); // right
         configs.add(new SensorConfig(SensorConfig.SensorType.GYRO, SensorPort.S3, "rate"));
-        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb"));
+        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // left
         return configs;
     }
 }

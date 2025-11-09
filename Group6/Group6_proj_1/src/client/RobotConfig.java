@@ -1,6 +1,8 @@
 package client;
 
 // Central configuration for robot parameters
+// REFER TO THIS CLASS FOR ALL CONFIGURABLE CONSTANTS
+// REFER TO ConfigurationGuide.java for detailed configuration instructions
 public class RobotConfig {
     
     // Network Configuration
@@ -42,9 +44,9 @@ public class RobotConfig {
     public static final boolean DEBUG = false;
     
     // Motor port assignments (for easy reconfiguration)
-    public static final char[] DRIVE_MOTORS = {'A', 'B', 'C', 'D'};
-    public static final char[] LEFT_MOTORS = {'B', 'C'};
-    public static final char[] RIGHT_MOTORS = {'A', 'D'};
+    public static final char[] DRIVE_MOTORS = {'A', 'B', 'C'};
+    public static final char[] LEFT_MOTORS = {'B'};
+    public static final char[] RIGHT_MOTORS = {'C'};
     
     // Prevent instantiation
     private RobotConfig() {

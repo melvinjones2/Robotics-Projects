@@ -14,9 +14,20 @@ public class ServerGUI {
     private JTextField commandField;
     private JButton sendButton;
     private volatile boolean debugMode = false;
+    private ServerAutonomousController autonomousController;
+    private JLabel sensorStatusLabel;
+    private JLabel threatLevelLabel;
+    private JButton autoEnableButton;
 
     @SuppressWarnings("Convert2Lambda")
     public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
+        setupMainWindow(out, frameCount, running, null);
+    }
+    
+    @SuppressWarnings("Convert2Lambda")
+    public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, 
+                               final AtomicBoolean running, ServerAutonomousController autoController) {
+        this.autonomousController = autoController;
         final JFrame mainFrame = new JFrame("EV3 Server");
         mainFrame.setLayout(new BorderLayout());
 
@@ -115,6 +126,12 @@ public class ServerGUI {
         systemPanel.add(byeButton);
         commandsPanel.add(systemPanel);
         
+        // Server Autonomous Control Panel
+        if (autonomousController != null) {
+            JPanel autoPanel = createAutonomousPanel(out, frameCount);
+            commandsPanel.add(autoPanel);
+        }
+        
         // Manual Command Panel
         JPanel manualPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         manualPanel.setBorder(BorderFactory.createTitledBorder("Manual Command"));
@@ -165,6 +182,131 @@ public class ServerGUI {
                 mainFrame.dispose();
             }
         });
+    }
+    
+    // Create autonomous control panel
+    @SuppressWarnings("Convert2Lambda")
+    private JPanel createAutonomousPanel(final BufferedWriter out, final AtomicInteger frameCount) {
+        JPanel autoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        autoPanel.setBorder(BorderFactory.createTitledBorder("Server Autonomous Control (SERVER Priority)"));
+        
+        // Enable/Disable autonomous mode
+        autoEnableButton = new JButton("Enable Server Auto");
+        autoEnableButton.setBackground(new Color(150, 255, 150));
+        autoEnableButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (autonomousController != null) {
+                    boolean newState = !autonomousController.isEnabled();
+                    autonomousController.setEnabled(newState);
+                    autoEnableButton.setText(newState ? "Disable Server Auto" : "Enable Server Auto");
+                    autoEnableButton.setBackground(newState ? new Color(255, 150, 150) : new Color(150, 255, 150));
+                    appendLog("Server autonomous mode: " + (newState ? "ENABLED" : "DISABLED"), false);
+                }
+            }
+        });
+        autoPanel.add(autoEnableButton);
+        
+        // Sensor status display
+        sensorStatusLabel = new JLabel("Sensors: No data");
+        autoPanel.add(sensorStatusLabel);
+        
+        // Threat level display
+        threatLevelLabel = new JLabel("Threat: NONE");
+        threatLevelLabel.setFont(threatLevelLabel.getFont().deriveFont(Font.BOLD));
+        autoPanel.add(threatLevelLabel);
+        
+        // Get suggestion button
+        JButton suggestButton = new JButton("Get Suggestion");
+        suggestButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (autonomousController != null) {
+                    String suggestion = autonomousController.analyzeAndSuggest();
+                    if (suggestion != null) {
+                        appendLog("[SERVER AUTO] Suggestion: " + suggestion, false);
+                    } else {
+                        appendLog("[SERVER AUTO] No action suggested", false);
+                    }
+                }
+            }
+        });
+        autoPanel.add(suggestButton);
+        
+        // Execute suggestion button
+        JButton executeButton = new JButton("Execute Suggestion");
+        executeButton.setBackground(new Color(255, 200, 100));
+        executeButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (autonomousController != null && out != null) {
+                    String suggestion = autonomousController.analyzeAndSuggest();
+                    if (suggestion != null) {
+                        try {
+                            // Send with SERVER: prefix for SERVER priority
+                            send(out, "SERVER:" + suggestion + ":" + frameCount.get());
+                            appendLog("[SERVER AUTO] Executed: " + suggestion, false);
+                        } catch (IOException ex) {
+                            appendLog("Error executing suggestion: " + ex.getMessage(), false);
+                        }
+                    } else {
+                        appendLog("[SERVER AUTO] No action to execute", false);
+                    }
+                }
+            }
+        });
+        autoPanel.add(executeButton);
+        
+        // Show sensor summary button
+        JButton summaryButton = new JButton("Sensor Summary");
+        summaryButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (autonomousController != null) {
+                    String summary = autonomousController.getSensorSummary();
+                    appendLog(summary, false);
+                }
+            }
+        });
+        autoPanel.add(summaryButton);
+        
+        // Start a timer to update sensor status
+        Timer updateTimer = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                updateSensorStatus();
+            }
+        });
+        updateTimer.start();
+        
+        return autoPanel;
+    }
+    
+    // Update sensor status labels
+    private void updateSensorStatus() {
+        if (autonomousController == null) return;
+        
+        Float distance = autonomousController.getSensorValue("ultrasonic");
+        Float touch = autonomousController.getSensorValue("touch");
+        
+        String status = String.format("Distance:%.1fcm Touch:%.0f", 
+                                    distance != null ? distance : 0.0, 
+                                    touch != null ? touch : 0.0);
+        sensorStatusLabel.setText(status);
+        
+        ServerAutonomousController.ThreatLevel threat = autonomousController.getThreatLevel();
+        threatLevelLabel.setText("Threat: " + threat);
+        switch (threat) {
+            case CRITICAL:
+                threatLevelLabel.setForeground(Color.RED);
+                break;
+            case HIGH:
+                threatLevelLabel.setForeground(new Color(255, 140, 0)); // Orange
+                break;
+            case NONE:
+                threatLevelLabel.setForeground(new Color(0, 128, 0)); // Green
+                break;
+        }
     }
     
     // Helper method to create command buttons

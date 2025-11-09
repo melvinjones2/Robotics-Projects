@@ -41,6 +41,12 @@ public class LightSensor implements ISensor {
         sample = new float[provider.sampleSize()];
     }
 
+    @Override
+    public String getName() {
+        return "light";
+    }
+
+    @Override
     public String readValue() {
         provider.fetchSample(sample, 0);
         if ("colorid".equals(mode)) {
@@ -50,6 +56,7 @@ public class LightSensor implements ISensor {
         }
     }
 
+    @Override
     public void close() {
         sensor.close();
     }

@@ -12,18 +12,25 @@ public class ClientHandler {
     private final AtomicBoolean running;
     private final AtomicInteger frameCount = new AtomicInteger(0);
     private final MessageDispatcher dispatcher;
+    private final ServerAutonomousController autonomousController;
 
     public ClientHandler(Socket client, ServerGUI gui, AtomicBoolean running) {
         this.client = client;
         this.gui = gui;
         this.running = running;
         this.dispatcher = new MessageDispatcher(gui, running, frameCount);
+        this.autonomousController = new ServerAutonomousController();
+        this.dispatcher.setAutonomousController(autonomousController);
+    }
+    
+    public ServerAutonomousController getAutonomousController() {
+        return autonomousController;
     }
 
     public void handle() {
         try (
                 BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream())); BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()))) {
-            gui.setupMainWindow(out, frameCount, running);
+            gui.setupMainWindow(out, frameCount, running, autonomousController);
 
             Server.send(out, "HELLO");
             String resp = in.readLine();

@@ -65,16 +65,25 @@ public class ClientMain {
                 "Awaiting orders."
             };
 
+            // Initialize sensor data storage
+            SensorDataStore dataStore = new SensorDataStore();
+            
             final CommandHandler command_handler = new CommandHandler(in, out, running, replies);
+            command_handler.setDataStore(dataStore); // Pass dataStore for sensor analysis commands
+            
+            // Initialize autonomous mode (client-side)
+            final AutonomousMode autoMode = new AutonomousMode(dataStore, command_handler);
+            command_handler.setAutonomousMode(autoMode); // Register AUTO command
+            
             Thread commandThread = new Thread(command_handler);
             commandThread.start();
-
+            
             // Use unified sensor factory with default config
             List<ISensor> foundSensors = SensorFactory.createSensors(
                 SensorFactory.getDefaultSensorConfig()
             );
             
-            SensorThread sensorThread = new SensorThread(out, running, foundSensors, frameCount);
+            SensorThread sensorThread = new SensorThread(out, running, foundSensors, frameCount, dataStore);
             Thread sensorThreadObj = new Thread(sensorThread);
             sensorThreadObj.start();
 
@@ -87,6 +96,9 @@ public class ClientMain {
                     running.set(false);
                     break;
                 }
+                
+                // Update autonomous mode (if enabled, will check sensors and take action)
+                autoMode.update();
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);

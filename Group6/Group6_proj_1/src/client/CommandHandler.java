@@ -18,6 +18,9 @@ public class CommandHandler implements IHandler {
     private volatile boolean debug;
     private final Map<String, ICommand> commandMap = new HashMap<String, ICommand>();
     private volatile Thread currentCommandThread; // Track running command thread
+    private SensorDataStore dataStore; // Store sensor data for analysis commands
+    private AsimovSafetyChecker safetyChecker; // Asimov's Three Laws enforcement
+    private volatile CommandPriority currentCommandPriority = CommandPriority.USER; // Current executing command priority
 
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
         this.in = in;
@@ -26,6 +29,64 @@ public class CommandHandler implements IHandler {
         this.replies = replies;
         registerCommands();
         init();
+    }
+    
+    public void setDataStore(SensorDataStore dataStore) {
+        this.dataStore = dataStore;
+        this.safetyChecker = new AsimovSafetyChecker(dataStore); // Initialize Asimov's Laws checker
+        registerSensorCommands(); // Register sensor analysis commands once dataStore is set
+    }
+    
+    /**
+     * Execute a command with the specified priority level.
+     * Returns true if command was executed, false if blocked.
+     */
+    public boolean executeWithPriority(String cmdKey, String[] args, CommandPriority priority) {
+        // Check if this priority can interrupt current command
+        if (priority.mustYieldTo(currentCommandPriority)) {
+            sendLog(String.format("Command '%s' blocked: priority %s cannot interrupt %s", 
+                                cmdKey, priority, currentCommandPriority));
+            return false;
+        }
+        
+        // Check Asimov's Three Laws (SAFETY priority - always enforced)
+        if (safetyChecker != null) {
+            AsimovSafetyChecker.SafetyViolation violation = safetyChecker.checkCommand(cmdKey, args);
+            if (violation != null) {
+                // First Law violations are hard blocks
+                if (violation.isHardBlock()) {
+                    sendLog("BLOCKED: " + violation.toString());
+                    say("Safety block", true); // Beep to alert
+                    return false;
+                }
+                // Third Law violations are warnings (can be overridden by SERVER priority)
+                else if (priority != CommandPriority.SERVER) {
+                    sendLog("WARNING: " + violation.toString());
+                    // Still execute but log the warning
+                }
+            }
+        }
+        
+        // Update current priority if higher priority command
+        if (priority.canInterrupt(currentCommandPriority)) {
+            sendLog(String.format("Priority escalation: %s -> %s for command '%s'",
+                                currentCommandPriority, priority, cmdKey));
+            // Interrupt any running lower-priority command
+            if (currentCommandThread != null && currentCommandThread.isAlive()) {
+                currentCommandThread.interrupt();
+            }
+        }
+        
+        currentCommandPriority = priority;
+        
+        // Execute the command
+        ICommand cmd = commandMap.get(cmdKey);
+        if (cmd != null) {
+            cmd.execute(args, this);
+            return true;
+        }
+        
+        return false;
     }
 
     private void registerCommands() {
@@ -51,6 +112,24 @@ public class CommandHandler implements IHandler {
         commandMap.put("MOVE_AND_LOG", new BatteryLoggingCommand());
         commandMap.put("ROTATE", new RotateMotorCommand());
     }
+    
+    // Register sensor analysis commands after dataStore is set
+    private void registerSensorCommands() {
+        if (dataStore != null) {
+            commandMap.put("ANALYZE", new AnalyzeSensorsCommand(dataStore));
+            commandMap.put("NAV_SUGGEST", new NavigationSuggestCommand(dataStore));
+            commandMap.put("SENSOR_STATS", new SensorStatsCommand(dataStore));
+        }
+    }
+    
+    /**
+     * Register autonomous mode command.
+     */
+    public void setAutonomousMode(AutonomousMode autoMode) {
+        if (autoMode != null) {
+            commandMap.put("AUTO", new AutoCommand(autoMode));
+        }
+    }
 
     private void init() {
         String motorSummary = MotorDetector.getMotorSummary();
@@ -67,9 +146,21 @@ public class CommandHandler implements IHandler {
         try {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
+                // Detect command priority based on message prefix
+                CommandPriority priority = CommandPriority.USER;
+                String actualLine = line;
+                
+                if (line.startsWith("SERVER:")) {
+                    priority = CommandPriority.SERVER;
+                    actualLine = line.substring(7); // Remove "SERVER:" prefix
+                } else if (line.startsWith("AUTO:")) {
+                    priority = CommandPriority.AUTONOMOUS;
+                    actualLine = line.substring(5); // Remove "AUTO:" prefix
+                }
+                
                 // Use unified parser
-                CommandParser.ParsedCommand parsed = CommandParser.parse(line);
-                String cmdKey = parsed.getCommand();
+                CommandParser.ParsedCommand parsed = CommandParser.parse(actualLine);
+                final String cmdKey = parsed.getCommand();
                 String[] parts = parsed.getArgs();
 
                 // Handle SET_DEBUG specially
@@ -81,30 +172,26 @@ public class CommandHandler implements IHandler {
 
                 final ICommand cmd = commandMap.get(cmdKey);
                 if (cmd != null) {
+                    // Execute with priority checking
+                    final CommandPriority cmdPriority = priority;
+                    final String[] cmdParts = parts;
+                    
                     // If it's a long-running command, run in a separate thread
                     if ("MOVE_AND_LOG".equalsIgnoreCase(cmdKey)) {
-                        // Interrupt any previous command
-                        if (currentCommandThread != null && currentCommandThread.isAlive()) {
-                            currentCommandThread.interrupt();
-                        }
-                        final String[] cmdParts = parts;
                         final CommandHandler handler = this;
                         currentCommandThread = new Thread(new Runnable() {
                             @Override
                             public void run() {
-                                cmd.execute(cmdParts, handler);
+                                executeWithPriority(cmdKey, cmdParts, cmdPriority);
                             }
                         }, "move-and-log-thread");
                         currentCommandThread.start();
                     } else if ("STOP".equalsIgnoreCase(cmdKey)) {
-                        // Interrupt the running command thread
-                        if (currentCommandThread != null && currentCommandThread.isAlive()) {
-                            currentCommandThread.interrupt();
-                        }
-                        cmd.execute(parts, this);
+                        // STOP always gets SAFETY priority
+                        executeWithPriority(cmdKey, parts, CommandPriority.SAFETY);
                     } else {
-                        cmd.execute(parts, this);
-                        if ("BYE".equalsIgnoreCase(cmdKey)) {
+                        boolean executed = executeWithPriority(cmdKey, parts, priority);
+                        if (executed && "BYE".equalsIgnoreCase(cmdKey)) {
                             break;
                         }
                     }
