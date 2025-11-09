@@ -79,24 +79,32 @@ public class MotorFactory {
         };
     }
     
-    // Stop all motors synchronously (non-blocking, then wait for all)
+    // Stop all motors (non-blocking)
     public static void stopAll() {
         BaseRegulatedMotor[] motors = getAllMotors();
         
         // Issue stop to all motors without waiting
         for (BaseRegulatedMotor motor : motors) {
             if (motor != null) {
-                motor.stop(true); // Immediate stop, non-blocking
+                try {
+                    motor.stop(false); // Non-blocking stop
+                } catch (Exception e) {
+                    // Handle motor error gracefully
+                }
             }
         }
     }
     
-    // Stop all motors with immediate brake
+    // Stop all motors with immediate brake (non-blocking)
     public static void stopAllImmediate() {
         BaseRegulatedMotor[] motors = getAllMotors();
         for (BaseRegulatedMotor motor : motors) {
             if (motor != null) {
-                motor.stop(true);
+                try {
+                    motor.stop(false); // Non-blocking stop
+                } catch (Exception e) {
+                    // Handle motor error gracefully
+                }
             }
         }
     }

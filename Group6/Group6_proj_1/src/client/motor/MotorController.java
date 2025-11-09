@@ -16,8 +16,12 @@ public class MotorController {
     public static void moveForward(char port, int speed) {
         BaseRegulatedMotor motor = getMotor(port);
         if (motor != null) {
-            motor.setSpeed(speed);
-            motor.forward();
+            try {
+                motor.setSpeed(speed);
+                motor.forward();
+            } catch (Exception e) {
+                // Handle motor error gracefully (unplugged, etc.)
+            }
         }
     }
 
@@ -27,8 +31,12 @@ public class MotorController {
     public static void moveBackward(char port, int speed) {
         BaseRegulatedMotor motor = getMotor(port);
         if (motor != null) {
-            motor.setSpeed(speed);
-            motor.backward();
+            try {
+                motor.setSpeed(speed);
+                motor.backward();
+            } catch (Exception e) {
+                // Handle motor error gracefully (unplugged, etc.)
+            }
         }
     }
 
@@ -38,7 +46,11 @@ public class MotorController {
     public static void stop(char port) {
         BaseRegulatedMotor motor = getMotor(port);
         if (motor != null) {
-            motor.stop();
+            try {
+                motor.stop(false); // Non-blocking stop
+            } catch (Exception e) {
+                // Handle motor error gracefully (unplugged, etc.)
+            }
         }
     }
 
@@ -101,7 +113,11 @@ public class MotorController {
     public static void rotateArm(char port, int angle) {
         BaseRegulatedMotor motor = getMotor(port);
         if (motor != null) {
-            motor.rotate(angle);
+            try {
+                motor.rotate(angle, true); // Non-blocking rotation
+            } catch (Exception e) {
+                // Handle motor error gracefully
+            }
         }
     }
 

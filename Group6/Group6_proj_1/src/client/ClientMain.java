@@ -60,8 +60,8 @@ public class ClientMain {
             send(out, "READY:0"); // Send initial frame count
 
             LCD.clear();
-            LCD.drawString("Connected", 0, 0);
-            LCD.drawString(RobotConfig.SERVER_HOST + ":" + RobotConfig.SERVER_PORT, 0, 1);
+            LCD.drawString("EV3 Ready", 0, 0);
+            LCD.drawString(RobotConfig.SERVER_HOST, 0, 1);
             Sound.beep();
 
             // ---- command handling thread ----
@@ -110,10 +110,7 @@ public class ClientMain {
 
                 // Send a TICK message with the current frame count
                 send(out, "TICK:" + frameCount);
-                if (RobotConfig.DEBUG) {
-                    LCD.clear(4);
-                    LCD.drawString("Frame: " + frameCount, 0, 4);
-                }
+                // Don't display frame count - too much clutter
 
                 frameCount++; // Increment after sending
 
@@ -143,8 +140,8 @@ public class ClientMain {
             }
 
         } catch (IOException e) {
-            LCD.drawString("Net error", 0, 3);
-            LCD.drawString(DisplayUtils.trim(e.getMessage()), 0, 4);
+            LCD.clear();
+            LCD.drawString("Network Error", 0, 2);
             Sound.buzz();
         } finally {
             running.set(false);

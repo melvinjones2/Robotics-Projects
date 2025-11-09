@@ -1,12 +1,11 @@
 package client.commands.movement;
 
-import client.network.CommandHandler;
-
 import client.commands.BaseCommand;
 import client.commands.CommandParser;
 import client.motor.MovementExecutor;
 import client.motor.MovementParameters;
 import client.motor.MovementParameters.Direction;
+import client.network.CommandHandler;
 
 /**
  * Unified movement command that handles all directional movements.
@@ -58,6 +57,9 @@ public class UnifiedMoveCommand extends BaseCommand {
             
         } catch (IllegalArgumentException e) {
             error(context, e.getMessage());
+        } catch (Exception e) {
+            // Catch any other exceptions to debug
+            error(context, "Unexpected error: " + e.getClass().getName() + " - " + e.getMessage());
         }
     }
     

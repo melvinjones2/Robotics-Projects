@@ -6,8 +6,9 @@ import lejos.hardware.lcd.LCD;
 public class DisplayUtils {
     public static void say(String msg, boolean beep) {
         if (beep) Sound.beep();
-        LCD.clear();
-        LCD.drawString(center(trimToWidth(msg, 16), 16), 0, 3);
+        // Only clear line 3, not entire screen
+        LCD.clear(3);
+        LCD.drawString(trimToWidth(msg, 18), 0, 3);
     }
 
     public static String trimToWidth(String s, int w) {

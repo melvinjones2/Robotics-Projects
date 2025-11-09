@@ -156,11 +156,11 @@ public class CommandHandler implements IHandler {
 
     private void init() {
         String motorSummary = MotorDetector.getMotorSummary();
-        LCD.drawString(motorSummary, 0, 2);
+        LCD.drawString("Motors: OK", 0, 2);
         try {
             send(out, "MOTOR: " + motorSummary);
         } catch (IOException e) {
-            LCD.drawString("Motor send err", 0, 6);
+            // Motor detection error - don't clutter display
         }
     }
 
@@ -199,20 +199,35 @@ public class CommandHandler implements IHandler {
                     final CommandPriority cmdPriority = priority;
                     final String[] cmdParts = parts;
                     
-                    // If it's a long-running command, run in a separate thread
-                    if ("MOVE_AND_LOG".equalsIgnoreCase(cmdKey)) {
-                        final CommandHandler handler = this;
+                    // Movement commands should run in separate thread to avoid blocking
+                    boolean isMovementCommand = "MOVE".equalsIgnoreCase(cmdKey) || 
+                                              "FWD".equalsIgnoreCase(cmdKey) || 
+                                              "FORWARD".equalsIgnoreCase(cmdKey) ||
+                                              "BWD".equalsIgnoreCase(cmdKey) || 
+                                              "BACKWARD".equalsIgnoreCase(cmdKey) ||
+                                              "BACK".equalsIgnoreCase(cmdKey) ||
+                                              "LEFT".equalsIgnoreCase(cmdKey) || 
+                                              "TURNLEFT".equalsIgnoreCase(cmdKey) ||
+                                              "RIGHT".equalsIgnoreCase(cmdKey) || 
+                                              "TURNRIGHT".equalsIgnoreCase(cmdKey) ||
+                                              "ROTATE".equalsIgnoreCase(cmdKey) ||
+                                              "MOVE_AND_LOG".equalsIgnoreCase(cmdKey) ||
+                                              "BEEP".equalsIgnoreCase(cmdKey); // BEEP can block with multiple beeps
+                    
+                    if (isMovementCommand) {
+                        // Run movement commands in separate thread
                         currentCommandThread = new Thread(new Runnable() {
                             @Override
                             public void run() {
                                 executeWithPriority(cmdKey, cmdParts, cmdPriority);
                             }
-                        }, "move-and-log-thread");
+                        }, "movement-thread");
                         currentCommandThread.start();
                     } else if ("STOP".equalsIgnoreCase(cmdKey)) {
-                        // STOP always gets SAFETY priority
+                        // STOP executes immediately with SAFETY priority (non-blocking)
                         executeWithPriority(cmdKey, parts, CommandPriority.SAFETY);
                     } else {
+                        // Other commands execute directly
                         boolean executed = executeWithPriority(cmdKey, parts, priority);
                         if (executed && "BYE".equalsIgnoreCase(cmdKey)) {
                             break;

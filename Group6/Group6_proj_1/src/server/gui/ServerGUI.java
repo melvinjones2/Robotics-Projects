@@ -21,6 +21,10 @@ public class ServerGUI {
     private JLabel sensorStatusLabel;
     private JLabel threatLevelLabel;
     private JButton autoEnableButton;
+    
+    // Command throttling to prevent flooding
+    private long lastCommandTime = 0;
+    private static final long MIN_COMMAND_INTERVAL_MS = 200; // 200ms between commands
 
     @SuppressWarnings("Convert2Lambda")
     public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
@@ -320,6 +324,18 @@ public class ServerGUI {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (out != null) {
+                    // Throttle commands to prevent flooding
+                    long now = System.currentTimeMillis();
+                    long timeSinceLastCommand = now - lastCommandTime;
+                    
+                    // Allow STOP commands immediately, throttle others
+                    if (!command.startsWith("STOP") && timeSinceLastCommand < MIN_COMMAND_INTERVAL_MS) {
+                        appendLog("[THROTTLED] Command ignored (too fast): " + command, false);
+                        return;
+                    }
+                    
+                    lastCommandTime = now;
+                    
                     try {
                         send(out, command + ":" + frameCount.get());
                         appendLog("[button] Sent: " + command, false);
