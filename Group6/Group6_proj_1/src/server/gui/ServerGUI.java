@@ -107,12 +107,12 @@ public class ServerGUI {
         // Rotation Control Panel
         JPanel rotatePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         rotatePanel.setBorder(BorderFactory.createTitledBorder("Rotation Control"));
-        rotatePanel.add(createCommandButton("Rotate A 90°", "ROTATE A 90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate A -90°", "ROTATE A -90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate D 90°", "ROTATE D 90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate D -90°", "ROTATE D -90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate 180°", "ROTATE D 180", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate 360°", "ROTATE D 360", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Left 90°", "ROTATE B 90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Left -90°", "ROTATE B -90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Right 90°", "ROTATE C 90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Right -90°", "ROTATE C -90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate 180°", "ROTATE C 180", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate 360°", "ROTATE C 360", out, frameCount));
         commandsPanel.add(rotatePanel);
         
         // Sensor & Battery Panel
