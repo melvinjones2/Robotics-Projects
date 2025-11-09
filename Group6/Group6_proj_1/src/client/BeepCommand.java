@@ -2,23 +2,22 @@ package client;
 
 import lejos.hardware.Sound;
 
-public class BeepCommand implements ICommand {
+public class BeepCommand extends BaseCommand {
     
     @Override
     public void execute(String[] args, CommandHandler context) {
-        // BEEP or BEEP <count>
         int count = 1;
         
         if (args.length > 1) {
             try {
                 count = CommandParser.parseInt(args[1], "count");
                 if (count < RobotConfig.MIN_BEEP_COUNT || count > RobotConfig.MAX_BEEP_COUNT) {
-                    context.say("Count must be " + RobotConfig.MIN_BEEP_COUNT + 
-                        "-" + RobotConfig.MAX_BEEP_COUNT, false);
+                    error(context, "Count must be " + RobotConfig.MIN_BEEP_COUNT + 
+                        "-" + RobotConfig.MAX_BEEP_COUNT);
                     return;
                 }
             } catch (IllegalArgumentException e) {
-                context.say("Error: " + e.getMessage(), false);
+                error(context, e.getMessage());
                 return;
             }
         }
@@ -34,7 +33,6 @@ public class BeepCommand implements ICommand {
             }
         }
         
-        context.say("Beep! x" + count, true);
-        context.sendLog("Beep command executed " + count + " times");
+        feedback(context, "Beep! x" + count, true);
     }
 }

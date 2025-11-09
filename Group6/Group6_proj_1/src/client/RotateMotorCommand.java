@@ -5,35 +5,32 @@
 
 package client;
 
-public class RotateMotorCommand implements ICommand {
+public class RotateMotorCommand extends BaseCommand {
 
     @Override
     public void execute(String[] args, CommandHandler context) {
         try {
+            char port;
+            int angle;
+            
             if (args.length == 2) {
                 // ROTATE <angle> - default to port D
-                int angle = CommandParser.parseInt(args[1], "angle");
-                char port = 'D';
-                MotorController.rotateArm(port, angle);
-                context.say("Motor " + port + " rotated by " + angle + " degrees", false);
-                context.sendLog("Rotate motor " + port + " by " + angle + " degrees");
+                port = 'D';
+                angle = CommandParser.parseInt(args[1], "angle");
+            } else if (args.length == 3) {
+                // ROTATE <port> <angle>
+                port = CommandParser.parsePort(args[1]);
+                angle = CommandParser.parseInt(args[2], "angle");
+            } else {
+                usage(context, "ROTATE <angle> or ROTATE <port> <angle>");
                 return;
             }
-
-            if (args.length != 3) {
-                context.say("Usage: ROTATE <angle> or ROTATE <port> <angle>", false);
-                return;
-            }
-
-            // ROTATE <port> <angle>
-            char port = CommandParser.parsePort(args[1]);
-            int angle = CommandParser.parseInt(args[2], "angle");
             
             MotorController.rotateArm(port, angle);
-            context.say("Motor " + port + " rotated by " + angle + " degrees", false);
-            context.sendLog("Rotate motor " + port + " by " + angle + " degrees");
+            feedback(context, "Motor " + port + " rotated " + angle + "°");
+            
         } catch (IllegalArgumentException e) {
-            context.say("Error: " + e.getMessage(), false);
+            error(context, e.getMessage());
         }
     }
 }

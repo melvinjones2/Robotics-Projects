@@ -19,20 +19,21 @@ public class Server {
         ServerGUI gui = new ServerGUI();
         try {
             LogManager.openLog();
-            LogManager.log("Server listening on " + port + " ...");
+            LogManager.setLogLevel(LogLevel.INFO); // Set desired log level
+            LogManager.info("Server listening on port " + port);
             serverSocket = new ServerSocket(port);
             Socket clientSocket = serverSocket.accept();
-            LogManager.log("Client connected: " + clientSocket.getRemoteSocketAddress());
+            LogManager.info("Client connected: " + clientSocket.getRemoteSocketAddress());
 
             ClientHandler handler = new ClientHandler(clientSocket, gui, running);
             handler.handle();
 
         } catch (IOException e) {
-            LogManager.log("Server error: " + e.getMessage());
+            LogManager.error("Server error", e);
         } finally {
             running.set(false);
             try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
-            LogManager.log("Server closed.");
+            LogManager.info("Server shutdown complete");
             LogManager.close();
         }
     }
@@ -41,11 +42,16 @@ public class Server {
         out.write(line);
         out.write("\n");
         out.flush();
-        LogManager.log("[you] " + line);
+        LogManager.debug("[you] " + line);
     }
 
     public static void logAndGui(ServerGUI gui, String prefix, String msg, int skip, boolean debug) {
-        LogManager.log(prefix + msg.substring(skip).trim());
+        String logMsg = prefix + msg.substring(skip).trim();
+        if (debug) {
+            LogManager.debug(logMsg);
+        } else {
+            LogManager.info(logMsg);
+        }
         gui.appendLog(msg, debug);
     }
 }

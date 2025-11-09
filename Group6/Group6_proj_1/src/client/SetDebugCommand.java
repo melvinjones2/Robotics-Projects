@@ -1,19 +1,17 @@
 package client;
 
-public class SetDebugCommand implements ICommand {
+public class SetDebugCommand extends BaseCommand {
     
     @Override
     public void execute(String[] args, CommandHandler context) {
-        if (args.length < 2) {
-            context.say("Usage: SET_DEBUG <0|1>", false);
+        if (!validateArgCount(context, args, 2, 2, "SET_DEBUG <0|1|on|off>")) {
             return;
         }
         
-        String value = args[1].trim();
-        boolean debugMode = "1".equals(value) || "true".equalsIgnoreCase(value) || "on".equalsIgnoreCase(value);
+        String value = args[1].trim().toLowerCase();
+        boolean debugMode = "1".equals(value) || "true".equals(value) || "on".equals(value);
         
         context.setDebug(debugMode);
-        context.say("Debug: " + (debugMode ? "ON" : "OFF"), false);
-        context.sendLog("Debug mode set to " + context.isDebug());
+        feedback(context, "Debug mode: " + (debugMode ? "ON" : "OFF"));
     }
 }

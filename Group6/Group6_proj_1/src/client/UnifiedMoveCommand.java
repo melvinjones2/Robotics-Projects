@@ -15,7 +15,7 @@ import client.MovementParameters.Direction;
  *   LEFT 300                    - Turn left at speed 300
  *   RIGHT 300                   - Turn right at speed 300
  */
-public class UnifiedMoveCommand implements ICommand {
+public class UnifiedMoveCommand extends BaseCommand {
     
     @Override
     public void execute(String[] args, CommandHandler context) {
@@ -25,44 +25,33 @@ public class UnifiedMoveCommand implements ICommand {
         }
         
         try {
-            // Determine direction from command
             Direction direction = parseDirection(args[0]);
             MovementParameters.Builder builder = new MovementParameters.Builder()
                 .direction(direction);
             
-            // Parse arguments based on count
             switch (args.length) {
                 case 2:
-                    // MOVE <speed> - all motors at speed
                     parseSpeedOnly(args, builder, context);
                     break;
-                    
                 case 3:
-                    // MOVE <port> <speed> - single motor at speed
                     parsePortAndSpeed(args, builder, context);
                     break;
-                    
                 case 4:
-                    // MOVE <port> <speed> <distance> - single motor at speed for distance
                     parsePortSpeedDistance(args, builder, context);
                     break;
-                    
                 default:
                     showUsage(context);
                     return;
             }
             
-            // Execute the movement
             MovementParameters params = builder.build();
             MovementExecutor.execute(params);
             
-            // Provide feedback
-            String feedback = generateFeedback(params, direction);
-            context.say(feedback, false);
-            context.sendLog(feedback);
+            String feedbackMsg = generateFeedback(params, direction);
+            feedback(context, feedbackMsg);
             
         } catch (IllegalArgumentException e) {
-            context.say("Error: " + e.getMessage(), false);
+            error(context, e.getMessage());
         }
     }
     
@@ -77,38 +66,33 @@ public class UnifiedMoveCommand implements ICommand {
         } else if (cmd.equals("RIGHT") || cmd.equals("TURNRIGHT")) {
             return Direction.RIGHT;
         }
-        return Direction.FORWARD; // Default
+        return Direction.FORWARD;
     }
     
     private void parseSpeedOnly(String[] args, MovementParameters.Builder builder, 
                                 CommandHandler context) {
-        int speed = parseInteger(args[1], "speed", context);
-        builder.speed(speed).port('*'); // All motors
+        int speed = CommandParser.parseInt(args[1], "speed");
+        builder.speed(speed).port('*');
     }
     
     private void parsePortAndSpeed(String[] args, MovementParameters.Builder builder,
                                    CommandHandler context) {
         char port = args[1].charAt(0);
-        int speed = parseInteger(args[2], "speed", context);
+        int speed = CommandParser.parseInt(args[2], "speed");
         builder.port(port).speed(speed);
     }
     
     private void parsePortSpeedDistance(String[] args, MovementParameters.Builder builder,
                                        CommandHandler context) {
         char port = args[1].charAt(0);
-        int speed = parseInteger(args[2], "speed", context);
-        int distance = parseInteger(args[3], "distance", context);
+        int speed = CommandParser.parseInt(args[2], "speed");
+        int distance = CommandParser.parseInt(args[3], "distance");
         builder.port(port).speed(speed).distance(distance).immediateReturn(false);
-    }
-    
-    private int parseInteger(String value, String paramName, CommandHandler context) {
-        return CommandParser.parseInt(value, paramName);
     }
     
     private String generateFeedback(MovementParameters params, Direction direction) {
         StringBuilder fb = new StringBuilder();
         
-        // Direction
         switch (direction) {
             case FORWARD: fb.append("Moving forward"); break;
             case BACKWARD: fb.append("Moving backward"); break;
@@ -116,17 +100,14 @@ public class UnifiedMoveCommand implements ICommand {
             case RIGHT: fb.append("Turning right"); break;
         }
         
-        // Target
         if (params.isAllMotors()) {
             fb.append(" (all motors)");
         } else {
             fb.append(" (motor ").append(params.getPort()).append(")");
         }
         
-        // Speed
         fb.append(" at speed ").append(params.getSpeed());
         
-        // Distance
         if (params.getDistance() > 0) {
             fb.append(" for ").append(params.getDistance()).append("°");
         }

@@ -1,16 +1,15 @@
 package client;
 
-public class LogCommand implements ICommand {
+public class LogCommand extends BaseCommand {
 
     @Override
     public void execute(String[] args, CommandHandler context) {
-        // LOG <message> - send a log message
         if (args.length < 2) {
-            context.say("Usage: LOG <message>", false);
+            usage(context, "LOG <message>");
             return;
         }
         
-        // Reconstruct message from all args after LOG
+        // Reconstruct message from all args
         StringBuilder message = new StringBuilder();
         for (int i = 1; i < args.length; i++) {
             if (i > 1) message.append(" ");
@@ -18,7 +17,6 @@ public class LogCommand implements ICommand {
         }
         
         String msg = message.toString();
-        context.sendLog("Client log: " + msg);
-        context.say("Logged: " + msg, false);
+        feedback(context, "Logged: " + msg);
     }
 }

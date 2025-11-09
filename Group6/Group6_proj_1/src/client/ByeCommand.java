@@ -1,11 +1,10 @@
 package client;
 
-public class ByeCommand implements ICommand {
+public class ByeCommand extends BaseCommand {
     
     @Override
     public void execute(String[] args, CommandHandler context) {
-        context.say("Bye!", true);
-        context.sendLog("Received BYE command");
+        feedback(context, "Bye! Disconnecting...", true);
         context.getRunning().set(false);
     }
 }

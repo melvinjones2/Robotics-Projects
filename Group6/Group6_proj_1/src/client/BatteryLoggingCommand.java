@@ -2,14 +2,13 @@ package client;
 
 import lejos.hardware.Battery;
 import lejos.hardware.motor.BaseRegulatedMotor;
-import java.io.IOException;
 
-public class BatteryLoggingCommand implements ICommand {
+public class BatteryLoggingCommand extends BaseCommand {
 
     public void moveAndLog(int speed, int logCount, int intervalMs, CommandHandler context) {
         BaseRegulatedMotor motorA = MotorFactory.getMotor('A');
         if (motorA == null) {
-            context.say("Motor A not available", false);
+            error(context, "Motor A not available");
             return;
         }
         
@@ -29,11 +28,12 @@ public class BatteryLoggingCommand implements ICommand {
                 float batteryCurrent = Battery.getBatteryCurrent();
                 float motorCurrent = Battery.getMotorCurrent();
 
-                context.send(context.getOut(), "BATTERY: " + batteryLevel + "mV"
+                String data = "BATTERY: " + batteryLevel + "mV"
                         + ", Voltage: " + voltageLevel + "V"
                         + ", Battery Current: " + batteryCurrent + "mA"
-                        + ", Motor Current: " + motorCurrent + "mA");
-
+                        + ", Motor Current: " + motorCurrent + "mA";
+                
+                sendToServer(context, data);
                 context.sendLog("Battery level sent: " + batteryLevel + "mV"
                         + ", Voltage: " + voltageLevel + "V"
                         + ", Battery Current: " + batteryCurrent + "mA"
@@ -44,7 +44,7 @@ public class BatteryLoggingCommand implements ICommand {
                 }
             }
         } catch (Exception e) {
-            context.say("Move/log error: " + e.getMessage(), false);
+            error(context, "Move/log error: " + e.getMessage());
         } finally {
             motorA.stop();
             context.sendLog("Motor stopped.");
@@ -53,10 +53,8 @@ public class BatteryLoggingCommand implements ICommand {
 
     @Override
     public void execute(String[] args, CommandHandler context) {
-        // MOVE_AND_LOG <speed> <count> <interval_ms>
         try {
-            if (args.length < 4) {
-                context.say("Usage: MOVE_AND_LOG <speed> <count> <interval_ms>", false);
+            if (!validateArgCount(context, args, 4, 4, "MOVE_AND_LOG <speed> <count> <interval_ms>")) {
                 return;
             }
             
@@ -65,21 +63,21 @@ public class BatteryLoggingCommand implements ICommand {
             int interval = CommandParser.parseInt(args[3], "interval");
             
             if (count < RobotConfig.MIN_LOG_COUNT || count > RobotConfig.MAX_LOG_COUNT) {
-                context.say("Count must be " + RobotConfig.MIN_LOG_COUNT + 
-                    "-" + RobotConfig.MAX_LOG_COUNT, false);
+                error(context, "Count must be " + RobotConfig.MIN_LOG_COUNT + 
+                    "-" + RobotConfig.MAX_LOG_COUNT);
                 return;
             }
             
             if (interval < RobotConfig.MIN_LOG_INTERVAL_MS || interval > RobotConfig.MAX_LOG_INTERVAL_MS) {
-                context.say("Interval must be " + RobotConfig.MIN_LOG_INTERVAL_MS + 
-                    "-" + RobotConfig.MAX_LOG_INTERVAL_MS + " ms", false);
+                error(context, "Interval must be " + RobotConfig.MIN_LOG_INTERVAL_MS + 
+                    "-" + RobotConfig.MAX_LOG_INTERVAL_MS + " ms");
                 return;
             }
             
             moveAndLog(speed, count, interval, context);
             
         } catch (IllegalArgumentException e) {
-            context.say("Error: " + e.getMessage(), false);
+            error(context, e.getMessage());
         }
     }
 }

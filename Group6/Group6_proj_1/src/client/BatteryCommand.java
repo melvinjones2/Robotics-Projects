@@ -1,34 +1,21 @@
 package client;
 
 import lejos.hardware.Battery;
-import java.io.IOException;
 
-public class BatteryCommand implements ICommand {
+public class BatteryCommand extends BaseCommand {
     
     @Override
     public void execute(String[] args, CommandHandler context) {
-        float batteryLevel;
-        float voltageLevel;
-        float batteryCurrent;
-        float motorCurrent;
-        try {
-            batteryLevel = Battery.getVoltageMilliVolt();
-            voltageLevel = Battery.getVoltage();
-            batteryCurrent = Battery.getBatteryCurrent();
-            motorCurrent = Battery.getMotorCurrent();
+        float batteryLevel = Battery.getVoltageMilliVolt();
+        float voltageLevel = Battery.getVoltage();
+        float batteryCurrent = Battery.getBatteryCurrent();
+        float motorCurrent = Battery.getMotorCurrent();
 
-            context.send(context.getOut(), "BATTERY: " + batteryLevel + "mV"
-                    + ", Voltage: " + voltageLevel + "V"
-                    + ", Battery Current: " + batteryCurrent + "mA"
-                    + ", Motor Current: " + motorCurrent + "mA");
+        String batteryData = String.format("BATTERY: %.0fmV, Voltage: %.2fV, "
+                + "Battery Current: %.0fmA, Motor Current: %.0fmA",
+                batteryLevel, voltageLevel, batteryCurrent, motorCurrent);
 
-            context.sendLog("Battery level sent: " + batteryLevel + "mV"
-                    + ", Voltage: " + voltageLevel + "V"
-                    + ", Battery Current: " + batteryCurrent + "mA"
-                    + ", Motor Current: " + motorCurrent + "mA");
-
-        } catch (IOException e) {
-            context.say("Batt send err", false);
-        }
+        sendToServer(context, batteryData);
+        feedback(context, "Battery data sent");
     }
 }
