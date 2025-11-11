@@ -11,6 +11,7 @@ public class GyroSensor implements ISensor {
     private SampleProvider provider;
     private float[] sample;
     private String mode;
+    private boolean closed = false;
 
     // Default: S3, "angle"
     public GyroSensor() {
@@ -45,12 +46,60 @@ public class GyroSensor implements ISensor {
 
     @Override
     public String readValue() {
-        provider.fetchSample(sample, 0);
-        return "SENSOR:GYRO:" + mode.toUpperCase() + ":" + sample[0];
+        if (closed || sensor == null) {
+            return null;
+        }
+        
+        try {
+            provider.fetchSample(sample, 0);
+            
+            // Simple format: gyro=value
+            // Angle mode returns degrees, rate mode returns degrees/sec
+            return "gyro=" + String.format("%.1f", sample[0]);
+        } catch (Exception e) {
+            // Sensor read error (disconnected, hardware failure)
+            return null;
+        }
+    }
+
+    @Override
+    public boolean isAvailable() {
+        if (closed || sensor == null) {
+            return false;
+        }
+        
+        try {
+            provider.fetchSample(sample, 0);
+            return !Float.isNaN(sample[0]);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Reset the gyro angle to zero (calibration).
+     * Only affects angle mode, not rate mode.
+     * Important: Robot must be stationary during reset.
+     */
+    public void reset() {
+        if (!closed && sensor != null) {
+            try {
+                sensor.reset();
+            } catch (Exception e) {
+                // Ignore reset errors
+            }
+        }
     }
 
     @Override
     public void close() {
-        sensor.close();
+        if (!closed && sensor != null) {
+            try {
+                sensor.close();
+            } catch (Exception e) {
+                // Ignore errors during close
+            }
+            closed = true;
+        }
     }
 }

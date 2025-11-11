@@ -7,6 +7,16 @@ import lejos.hardware.Battery;
 
 public class BatteryCommand extends BaseCommand {
     
+    /**
+     * Register this command with the registry.
+     */
+    public static void register(client.commands.CommandRegistry registry) {
+        registry.register(new client.commands.CommandMetadata(
+            "GET_BATTERY", new BatteryCommand(), "System",
+            "Get battery status and voltage"
+        ));
+    }
+    
     @Override
     public void execute(String[] args, CommandHandler context) {
         float batteryLevel = Battery.getVoltageMilliVolt();

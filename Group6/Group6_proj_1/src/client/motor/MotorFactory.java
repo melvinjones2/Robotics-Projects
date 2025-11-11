@@ -1,7 +1,6 @@
 package client.motor;
 
 import lejos.hardware.motor.BaseRegulatedMotor;
-import lejos.hardware.motor.Motor;
 import lejos.hardware.motor.EV3LargeRegulatedMotor;
 import lejos.hardware.motor.EV3MediumRegulatedMotor;
 import lejos.hardware.port.MotorPort;
@@ -16,10 +15,10 @@ public class MotorFactory {
         LARGE, MEDIUM
     }
     
-    // Cache motors to avoid recreating them
+    // Cache motors to avoid recreating them (important: only create once per port)
     private static final Map<Character, BaseRegulatedMotor> motorCache = new HashMap<>();
     
-    // Get motor by port letter (A, B, C, D)
+    // Get motor by port letter (A, B, C, D) - creates EV3LargeRegulatedMotor by default
     public static BaseRegulatedMotor getMotor(char port) {
         port = Character.toUpperCase(port);
         
@@ -28,18 +27,15 @@ public class MotorFactory {
             return motorCache.get(port);
         }
         
-        // Use the static Motor instances (recommended for EV3)
-        BaseRegulatedMotor motor = null;
-        switch (port) {
-            case 'A': motor = Motor.A; break;
-            case 'B': motor = Motor.B; break;
-            case 'C': motor = Motor.C; break;
-            case 'D': motor = Motor.D; break;
+        // Create new motor instance (recommended approach for EV3)
+        Port motorPort = parseMotorPort(port);
+        if (motorPort == null) {
+            return null;
         }
         
-        if (motor != null) {
-            motorCache.put(port, motor);
-        }
+        // Default to large motor (most common for drive motors)
+        BaseRegulatedMotor motor = new EV3LargeRegulatedMotor(motorPort);
+        motorCache.put(port, motor);
         
         return motor;
     }
@@ -75,8 +71,19 @@ public class MotorFactory {
     // Get all available motors
     public static BaseRegulatedMotor[] getAllMotors() {
         return new BaseRegulatedMotor[] {
-            Motor.A, Motor.B, Motor.C, Motor.D
+            getMotor('A'), getMotor('B'), getMotor('C'), getMotor('D')
         };
+    }
+    
+    // Get drive motors (left and right) for movement
+    public static BaseRegulatedMotor[] getDriveMotors() {
+        // Use RobotConfig.DRIVE_MOTORS for configuration
+        char[] drivePorts = client.config.RobotConfig.DRIVE_MOTORS;
+        BaseRegulatedMotor[] motors = new BaseRegulatedMotor[drivePorts.length];
+        for (int i = 0; i < drivePorts.length; i++) {
+            motors[i] = getMotor(drivePorts[i]);
+        }
+        return motors;
     }
     
     // Stop all motors (non-blocking)

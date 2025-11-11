@@ -1,35 +1,23 @@
 package client.util;
 
 import lejos.hardware.Sound;
-import lejos.hardware.lcd.LCD;
 
+/**
+ * Display and sound utilities for user feedback.
+ */
 public class DisplayUtils {
+    /**
+     * Provide audio feedback to user.
+     * @param msg Message (currently not displayed to avoid overwriting command display)
+     * @param beep Whether to play beep sound
+     */
     public static void say(String msg, boolean beep) {
-        if (beep) Sound.beep();
-        // Only clear line 3, not entire screen
-        LCD.clear(3);
-        LCD.drawString(trimToWidth(msg, 18), 0, 3);
-    }
-
-    public static String trimToWidth(String s, int w) {
-        if (s == null) return "";
-        return s.length() <= w ? s : s.substring(0, w);
-    }
-
-    public static String center(String s, int width) {
-        int pad = Math.max(0, (width - s.length()) / 2);
-        StringBuilder sb = new StringBuilder(width);
-        for (int k = 0; k < pad; k++) 
-        	sb.append(' ');
-        sb.append(s);
-        
-        while (sb.length() < width) 
-        	sb.append(' ');
-        return sb.toString();
-    }
-
-    public static String trim(String s) {
-        if (s == null) return "";
-        return s.length() <= 16 ? s : s.substring(0, 16);
+        try {
+            if (beep) Sound.beep();
+            // Command is already shown by CommandHandler on line 3
+            // Don't overwrite it with feedback message
+        } catch (Exception e) {
+            // Sound system might fail - continue anyway
+        }
     }
 }

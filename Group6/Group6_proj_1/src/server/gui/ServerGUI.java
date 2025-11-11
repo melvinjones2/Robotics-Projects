@@ -11,6 +11,26 @@ import javax.swing.*;
 import server.autonomous.ServerAutonomousController;
 import server.logging.LogManager;
 
+/**
+ * Graphical User Interface for the EV3 Robot Server.
+ * 
+ * <p>Provides a comprehensive control panel for sending commands to connected robots,
+ * monitoring sensor data, and managing autonomous control features. The GUI includes:
+ * <ul>
+ *   <li>Movement controls (forward, backward, turning)</li>
+ *   <li>Individual motor control</li>
+ *   <li>Rotation control for precise movements</li>
+ *   <li>Sensor and battery monitoring</li>
+ *   <li>System commands (beep, disconnect)</li>
+ *   <li>Server autonomous control with threat detection</li>
+ *   <li>Manual command input</li>
+ *   <li>Debug mode toggle</li>
+ *   <li>Command throttling to prevent flooding</li>
+ * </ul>
+ * 
+ * @author Group 6
+ * @version 2.0
+ */
 public class ServerGUI {
 
     private JTextArea logArea;
@@ -22,9 +42,9 @@ public class ServerGUI {
     private JLabel threatLevelLabel;
     private JButton autoEnableButton;
     
-    // Command throttling to prevent flooding
+    /** Minimum interval between commands to prevent flooding */
     private long lastCommandTime = 0;
-    private static final long MIN_COMMAND_INTERVAL_MS = 200; // 200ms between commands
+    private static final long MIN_COMMAND_INTERVAL_MS = 200;
 
     @SuppressWarnings("Convert2Lambda")
     public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
@@ -167,7 +187,8 @@ public class ServerGUI {
                 String line = commandField.getText().trim();
                 if (!line.isEmpty() && out != null) {
                     try {
-                        send(out, line + ":" + frameCount.get());
+                        // Send command WITHOUT frame number - client doesn't expect it
+                        send(out, line);
                         if ("BYE".equalsIgnoreCase(line)) {
                             running.set(false);
                             mainFrame.dispose();
@@ -250,8 +271,8 @@ public class ServerGUI {
                     String suggestion = autonomousController.analyzeAndSuggest();
                     if (suggestion != null) {
                         try {
-                            // Send with SERVER: prefix for SERVER priority
-                            send(out, "SERVER:" + suggestion + ":" + frameCount.get());
+                            // Send command WITHOUT frame number - client doesn't expect it
+                            send(out, suggestion);
                             appendLog("[SERVER AUTO] Executed: " + suggestion, false);
                         } catch (IOException ex) {
                             appendLog("Error executing suggestion: " + ex.getMessage(), false);
@@ -337,7 +358,8 @@ public class ServerGUI {
                     lastCommandTime = now;
                     
                     try {
-                        send(out, command + ":" + frameCount.get());
+                        // Send command WITHOUT frame number - client doesn't expect it
+                        send(out, command);
                         appendLog("[button] Sent: " + command, false);
                     } catch (IOException ex) {
                         LogManager.log("Send error: " + ex.getMessage());
@@ -363,7 +385,8 @@ public class ServerGUI {
                         int intervalMs = 2000; 
                         for (int i = 0; i < speeds.length; i++) {
                             try {
-                                send(out, "MOVE_AND_LOG " + speeds[i] + " " + logCount + " " + intervalMs + ":" + frameCount.get());
+                                // Send command WITHOUT frame number - client doesn't expect it
+                                send(out, "MOVE_AND_LOG " + speeds[i] + " " + logCount + " " + intervalMs);
                                 appendLog("[auto] Sent MOVE_AND_LOG " + speeds[i] + " " + logCount + " " + intervalMs, false);
                                 Thread.sleep(logCount * intervalMs);
                             } catch (Exception ex) {

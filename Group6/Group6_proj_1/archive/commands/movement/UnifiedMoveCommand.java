@@ -8,8 +8,8 @@ import client.motor.MovementParameters.Direction;
 import client.network.CommandHandler;
 
 /**
- * Unified movement command that handles all directional movements.
- * Supports: MOVE, BWD (backward), LEFT, RIGHT with flexible parameters.
+ * Unified movement command that handles all directional movements and rotation.
+ * Supports: MOVE, BWD (backward), LEFT, RIGHT, ROTATE with flexible parameters.
  * 
  * Usage examples:
  *   MOVE 300                    - Move all motors forward at speed 300
@@ -19,8 +19,51 @@ import client.network.CommandHandler;
  *   BWD B 250                   - Move motor B backward at speed 250
  *   LEFT 300                    - Turn left at speed 300
  *   RIGHT 300                   - Turn right at speed 300
+ *   ROTATE 90                   - Rotate default motor (A) by 90 degrees
+ *   ROTATE A 180                - Rotate motor A by 180 degrees
  */
 public class UnifiedMoveCommand extends BaseCommand {
+    
+    /**
+     * Register this command with the registry.
+     */
+    public static void register(client.commands.CommandRegistry registry) {
+        UnifiedMoveCommand cmd = new UnifiedMoveCommand();
+        
+        // Register MOVE with aliases
+        registry.register(new client.commands.CommandMetadata(
+            "MOVE", cmd, "Movement", 
+            "Move motors forward",
+            "FWD", "FORWARD"
+        ));
+        
+        // Register BWD with aliases
+        registry.register(new client.commands.CommandMetadata(
+            "BWD", cmd, "Movement",
+            "Move motors backward",
+            "BACKWARD", "BACK"
+        ));
+        
+        // Register LEFT/RIGHT
+        registry.register(new client.commands.CommandMetadata(
+            "LEFT", cmd, "Movement",
+            "Turn left",
+            "TURNLEFT"
+        ));
+        
+        registry.register(new client.commands.CommandMetadata(
+            "RIGHT", cmd, "Movement",
+            "Turn right",
+            "TURNRIGHT"
+        ));
+        
+        // Register ROTATE
+        registry.register(new client.commands.CommandMetadata(
+            "ROTATE", cmd, "Movement",
+            "Rotate motor by angle",
+            "ROT"
+        ));
+    }
     
     @Override
     public void execute(String[] args, CommandHandler context) {
@@ -30,6 +73,12 @@ public class UnifiedMoveCommand extends BaseCommand {
         }
         
         try {
+            // Check if this is a ROTATE command
+            if (isRotateCommand(args[0])) {
+                executeRotate(args, context);
+                return;
+            }
+            
             Direction direction = parseDirection(args[0]);
             MovementParameters.Builder builder = new MovementParameters.Builder()
                 .direction(direction);
@@ -50,6 +99,9 @@ public class UnifiedMoveCommand extends BaseCommand {
             }
             
             MovementParameters params = builder.build();
+            
+            // Set command queue reference for interrupt checking
+            MovementExecutor.setCommandQueue(context.getCommandQueue());
             MovementExecutor.execute(params);
             
             String feedbackMsg = generateFeedback(params, direction);
@@ -61,6 +113,35 @@ public class UnifiedMoveCommand extends BaseCommand {
             // Catch any other exceptions to debug
             error(context, "Unexpected error: " + e.getClass().getName() + " - " + e.getMessage());
         }
+    }
+    
+    private boolean isRotateCommand(String command) {
+        String cmd = command.toUpperCase();
+        return cmd.equals("ROTATE") || cmd.equals("ROT");
+    }
+    
+    private void executeRotate(String[] args, CommandHandler context) {
+        char port;
+        int angle;
+        
+        if (args.length == 2) {
+            // ROTATE <angle> - default to port A (arm motor)
+            port = 'A';
+            angle = CommandParser.parseInt(args[1], "angle");
+        } else if (args.length == 3) {
+            // ROTATE <port> <angle>
+            port = CommandParser.parsePort(args[1]);
+            angle = CommandParser.parseInt(args[2], "angle");
+        } else {
+            error(context, "Usage: ROTATE <angle> or ROTATE <port> <angle>");
+            return;
+        }
+        
+        // Set command queue reference for interrupt checking
+        MovementExecutor.setCommandQueue(context.getCommandQueue());
+        MovementExecutor.rotate(port, angle);
+        
+        feedback(context, "Motor " + port + " rotated " + angle + "°");
     }
     
     private Direction parseDirection(String command) {
@@ -130,5 +211,7 @@ public class UnifiedMoveCommand extends BaseCommand {
         context.say("  MOVE <port> <speed> <deg> - Motor for degrees", false);
         context.say("  BWD <speed>               - All motors backward", false);
         context.say("  LEFT/RIGHT <speed>        - Turn", false);
+        context.say("  ROTATE <angle>            - Rotate motor A", false);
+        context.say("  ROTATE <port> <angle>     - Rotate specific motor", false);
     }
 }

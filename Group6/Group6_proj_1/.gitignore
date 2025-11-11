@@ -1,0 +1,107 @@
+# ============================================================================
+# EV3 Robot Project - Git Ignore File
+# ============================================================================
+
+# Compiled Java class files
+*.class
+
+# JAR files (except libraries)
+*.jar
+!lib/*.jar
+
+# Build directories
+bin/
+build/
+target/
+out/
+
+# Log files
+*.log
+*.txt
+
+# Eclipse project files
+.classpath
+.project
+.settings/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# NetBeans
+nbproject/
+nbbuild/
+dist/
+nbdist/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Package files
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual machine crash logs
+hs_err_pid*
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle
+**/build/
+!src/**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# LeJOS specific
+leJOS.properties
+
+# Test output
+test-output/
+TEST-*.xml
+
+# Documentation
+javadoc/
+doc/
+
+# Backup files
+*.bak
+*.backup

@@ -9,6 +9,16 @@ import lejos.hardware.Sound;
 
 public class BeepCommand extends BaseCommand {
     
+    /**
+     * Register this command with the registry.
+     */
+    public static void register(client.commands.CommandRegistry registry) {
+        registry.register(new client.commands.CommandMetadata(
+            "BEEP", new BeepCommand(), "System",
+            "Beep sound (optional count)"
+        ));
+    }
+    
     @Override
     public void execute(String[] args, CommandHandler context) {
         int count = 1;

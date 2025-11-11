@@ -1,291 +1,290 @@
 package client.network;
 
-import client.commands.CommandParser;
-import client.commands.ICommand;
-import client.commands.autonomous.AutoCommand;
-import client.commands.autonomous.BatteryLoggingCommand;
-import client.commands.movement.RotateMotorCommand;
-import client.commands.movement.StopCommand;
-import client.commands.movement.UnifiedMoveCommand;
-import client.commands.sensor.AnalyzeSensorsCommand;
-import client.commands.sensor.NavigationSuggestCommand;
-import client.commands.sensor.SensorStatsCommand;
-import client.commands.system.BatteryCommand;
-import client.commands.system.BeepCommand;
-import client.commands.system.ByeCommand;
-import client.commands.system.LogCommand;
-import client.commands.system.SetDebugCommand;
-import client.motor.MotorDetector;
-import client.network.CommandHandler;
-import client.safety.AsimovSafetyChecker;
-import client.safety.AutonomousMode;
-import client.safety.CommandPriority;
-import client.sensor.data.SensorDataStore;
-import client.util.DisplayUtils;
+import client.motor.MotorFactory;
+import lejos.hardware.lcd.LCD;
+import lejos.hardware.motor.BaseRegulatedMotor;
+import lejos.hardware.Sound;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lejos.hardware.Sound;
-import lejos.hardware.lcd.LCD;
 
-public class CommandHandler implements IHandler {
-
+/**
+ * Handles incoming commands from the server and executes them on the robot.
+ * 
+ * <p>This handler operates in a "thin client" model where the server sends
+ * commands and the client executes them immediately. The handler supports:
+ * <ul>
+ *   <li>Movement commands (MOVE, FWD, BWD, LEFT, RIGHT)</li>
+ *   <li>Individual motor control (MOVE A 200, STOP B)</li>
+ *   <li>Stop commands (STOP, STOP [port])</li>
+ *   <li>Audio feedback (BEEP)</li>
+ *   <li>Disconnect command (BYE)</li>
+ * </ul>
+ * 
+ * <p>Commands are displayed on LCD line 1, except for TICK_ACK messages which
+ * are filtered out to avoid clutter.
+ * 
+ * @author Group 6
+ * @version 2.0
+ */
+public class CommandHandler implements Runnable {
+    
+    private static final int DEFAULT_SPEED = 300;
+    private static final int DEFAULT_TURN_SPEED = 300;
+    private static final int MAX_SPEED = 900;
+    private static final int MIN_SPEED = 0;
+    private static final int MAX_BEEP_COUNT = 5;
+    private static final int BEEP_INTERVAL_MS = 200;
+    
     private final BufferedReader in;
     private final BufferedWriter out;
     private final AtomicBoolean running;
-    private final String[] replies;
-    private volatile boolean debug;
-    private final Map<String, ICommand> commandMap = new HashMap<String, ICommand>();
-    private volatile Thread currentCommandThread; // Track running command thread
-    private SensorDataStore dataStore; // Store sensor data for analysis commands
-    private AsimovSafetyChecker safetyChecker; // Asimov's Three Laws enforcement
-    private volatile CommandPriority currentCommandPriority = CommandPriority.USER; // Current executing command priority
-
-    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, String[] replies) {
+    
+    /**
+     * Constructs a new command handler.
+     * 
+     * @param in      Input stream for receiving commands from server
+     * @param out     Output stream for sending responses to server
+     * @param running Shared flag indicating if the client should continue running
+     */
+    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running) {
         this.in = in;
         this.out = out;
         this.running = running;
-        this.replies = replies;
-        registerCommands();
-        init();
-    }
-    
-    public void setDataStore(SensorDataStore dataStore) {
-        this.dataStore = dataStore;
-        this.safetyChecker = new AsimovSafetyChecker(dataStore); // Initialize Asimov's Laws checker
-        registerSensorCommands(); // Register sensor analysis commands once dataStore is set
     }
     
     /**
-     * Execute a command with the specified priority level.
-     * Returns true if command was executed, false if blocked.
+     * Main command processing loop. Reads commands from server and executes them.
+     * Continues until connection is lost or running flag is set to false.
      */
-    public boolean executeWithPriority(String cmdKey, String[] args, CommandPriority priority) {
-        // Check if this priority can interrupt current command
-        if (priority.mustYieldTo(currentCommandPriority)) {
-            sendLog(String.format("Command '%s' blocked: priority %s cannot interrupt %s", 
-                                cmdKey, priority, currentCommandPriority));
-            return false;
-        }
-        
-        // Check Asimov's Three Laws (SAFETY priority - always enforced)
-        if (safetyChecker != null) {
-            AsimovSafetyChecker.SafetyViolation violation = safetyChecker.checkCommand(cmdKey, args);
-            if (violation != null) {
-                // First Law violations are hard blocks
-                if (violation.isHardBlock()) {
-                    sendLog("BLOCKED: " + violation.toString());
-                    say("Safety block", true); // Beep to alert
-                    return false;
-                }
-                // Third Law violations are warnings (can be overridden by SERVER priority)
-                else if (priority != CommandPriority.SERVER) {
-                    sendLog("WARNING: " + violation.toString());
-                    // Still execute but log the warning
-                }
-            }
-        }
-        
-        // Update current priority if higher priority command
-        if (priority.canInterrupt(currentCommandPriority)) {
-            sendLog(String.format("Priority escalation: %s -> %s for command '%s'",
-                                currentCommandPriority, priority, cmdKey));
-            // Interrupt any running lower-priority command
-            if (currentCommandThread != null && currentCommandThread.isAlive()) {
-                currentCommandThread.interrupt();
-            }
-        }
-        
-        currentCommandPriority = priority;
-        
-        // Execute the command
-        ICommand cmd = commandMap.get(cmdKey);
-        if (cmd != null) {
-            cmd.execute(args, this);
-            return true;
-        }
-        
-        return false;
-    }
-
-    private void registerCommands() {
-        // Use unified movement command for better control
-        UnifiedMoveCommand moveCmd = new UnifiedMoveCommand();
-        
-        commandMap.put("BEEP", new BeepCommand());
-        commandMap.put("MOVE", moveCmd);
-        commandMap.put("FWD", moveCmd);
-        commandMap.put("FORWARD", moveCmd);
-        commandMap.put("BWD", moveCmd);
-        commandMap.put("BACKWARD", moveCmd);
-        commandMap.put("BACK", moveCmd);
-        commandMap.put("LEFT", moveCmd);
-        commandMap.put("TURNLEFT", moveCmd);
-        commandMap.put("RIGHT", moveCmd);
-        commandMap.put("TURNRIGHT", moveCmd);
-        commandMap.put("STOP", new StopCommand());
-        commandMap.put("GET_BATTERY", new BatteryCommand());
-        commandMap.put("SET_DEBUG", new SetDebugCommand());
-        commandMap.put("BYE", new ByeCommand());
-        commandMap.put("LOG", new LogCommand());
-        commandMap.put("MOVE_AND_LOG", new BatteryLoggingCommand());
-        commandMap.put("ROTATE", new RotateMotorCommand());
-    }
-    
-    // Register sensor analysis commands after dataStore is set
-    private void registerSensorCommands() {
-        if (dataStore != null) {
-            commandMap.put("ANALYZE", new AnalyzeSensorsCommand(dataStore));
-            commandMap.put("NAV_SUGGEST", new NavigationSuggestCommand(dataStore));
-            commandMap.put("SENSOR_STATS", new SensorStatsCommand(dataStore));
-        }
-    }
-    
-    /**
-     * Register autonomous mode command.
-     */
-    public void setAutonomousMode(AutonomousMode autoMode) {
-        if (autoMode != null) {
-            commandMap.put("AUTO", new AutoCommand(autoMode));
-        }
-    }
-
-    private void init() {
-        String motorSummary = MotorDetector.getMotorSummary();
-        LCD.drawString("Motors: OK", 0, 2);
-        try {
-            send(out, "MOTOR: " + motorSummary);
-        } catch (IOException e) {
-            // Motor detection error - don't clutter display
-        }
-    }
-
+    @Override
     public void run() {
-        int replyIndex = 0;
+        LCD.clear(1);
+        LCD.drawString("Ready", 0, 1);
+        
         try {
             String line;
             while (running.get() && (line = in.readLine()) != null) {
-                // Detect command priority based on message prefix
-                CommandPriority priority = CommandPriority.USER;
-                String actualLine = line;
+                line = line.trim();
+                if (line.isEmpty()) continue;
                 
-                if (line.startsWith("SERVER:")) {
-                    priority = CommandPriority.SERVER;
-                    actualLine = line.substring(7); // Remove "SERVER:" prefix
-                } else if (line.startsWith("AUTO:")) {
-                    priority = CommandPriority.AUTONOMOUS;
-                    actualLine = line.substring(5); // Remove "AUTO:" prefix
+                // Parse command first to check if we should display it
+                String[] parts = line.split("\\s+");
+                String cmd = parts[0].toUpperCase();
+                
+                // Don't display TICK_ACK messages on LCD
+                if (!cmd.equals("TICK_ACK") && !line.startsWith("TICK_ACK")) {
+                    // Show command on LCD line 1 (line 0=status, lines 2-7=sensors)
+                    LCD.clear(1);
+                    String display = line.substring(0, Math.min(18, line.length()));
+                    LCD.drawString(display, 0, 1);
                 }
                 
-                // Use unified parser
-                CommandParser.ParsedCommand parsed = CommandParser.parse(actualLine);
-                final String cmdKey = parsed.getCommand();
-                String[] parts = parsed.getArgs();
-
-                // Handle SET_DEBUG specially
-                if (cmdKey.equals("SET_DEBUG") && parts.length > 1) {
-                    setDebug("1".equals(parts[1]));
-                    sendLog("Debug mode set to " + debug);
-                    continue;
-                }
-
-                final ICommand cmd = commandMap.get(cmdKey);
-                if (cmd != null) {
-                    // Execute with priority checking
-                    final CommandPriority cmdPriority = priority;
-                    final String[] cmdParts = parts;
-                    
-                    // Movement commands should run in separate thread to avoid blocking
-                    boolean isMovementCommand = "MOVE".equalsIgnoreCase(cmdKey) || 
-                                              "FWD".equalsIgnoreCase(cmdKey) || 
-                                              "FORWARD".equalsIgnoreCase(cmdKey) ||
-                                              "BWD".equalsIgnoreCase(cmdKey) || 
-                                              "BACKWARD".equalsIgnoreCase(cmdKey) ||
-                                              "BACK".equalsIgnoreCase(cmdKey) ||
-                                              "LEFT".equalsIgnoreCase(cmdKey) || 
-                                              "TURNLEFT".equalsIgnoreCase(cmdKey) ||
-                                              "RIGHT".equalsIgnoreCase(cmdKey) || 
-                                              "TURNRIGHT".equalsIgnoreCase(cmdKey) ||
-                                              "ROTATE".equalsIgnoreCase(cmdKey) ||
-                                              "MOVE_AND_LOG".equalsIgnoreCase(cmdKey) ||
-                                              "BEEP".equalsIgnoreCase(cmdKey); // BEEP can block with multiple beeps
-                    
-                    if (isMovementCommand) {
-                        // Run movement commands in separate thread
-                        currentCommandThread = new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                executeWithPriority(cmdKey, cmdParts, cmdPriority);
-                            }
-                        }, "movement-thread");
-                        currentCommandThread.start();
-                    } else if ("STOP".equalsIgnoreCase(cmdKey)) {
-                        // STOP executes immediately with SAFETY priority (non-blocking)
-                        executeWithPriority(cmdKey, parts, CommandPriority.SAFETY);
-                    } else {
-                        // Other commands execute directly
-                        boolean executed = executeWithPriority(cmdKey, parts, priority);
-                        if (executed && "BYE".equalsIgnoreCase(cmdKey)) {
-                            break;
-                        }
-                    }
-                } else if (cmdKey.length() > 0) {
-                    say(line.trim(), false);
-                    sendLog("Displayed message: " + line.trim());
-                } else {
-                    if (replies.length > 0) {
-                        String reply = replies[replyIndex % replies.length];
-                        replyIndex++;
-                        send(out, "REPLY: " + reply);
-                        sendLog("Sent reply: " + reply);
-                    }
+                try {
+                    executeCommand(cmd, parts);
+                } catch (Exception e) {
+                    LCD.clear(1);
+                    String err = "ERR:" + (e.getMessage() != null ? e.getMessage() : "Unknown");
+                    LCD.drawString(err.substring(0, Math.min(18, err.length())), 0, 1);
+                    Sound.buzz();
                 }
             }
         } catch (IOException e) {
-            say("Net error", false);
-            sendLog("Network error: " + e.getMessage());
+            LCD.clear(1);
+            LCD.drawString("Conn Lost", 0, 1);
+        } finally {
+            running.set(false);
+            stopAllMotors();
         }
     }
-
-    // Utility methods for commands to use
-    public void send(BufferedWriter out, String line) throws IOException {
-        out.write(line);
-        out.write("\n");
-        out.flush();
+    
+    /**
+     * Parses and executes a command from the server.
+     * 
+     * @param cmd   Command keyword (uppercase)
+     * @param parts All parts of the command split by whitespace
+     * @throws IOException if communication error occurs
+     */
+    private void executeCommand(String cmd, String[] parts) throws IOException {
+        switch (cmd) {
+            case "MOVE":
+            case "FWD":
+            case "FORWARD":
+                // Check if it's a single motor command: MOVE A 200
+                if (parts.length > 2 && parts[1].length() == 1 && Character.isLetter(parts[1].charAt(0))) {
+                    handleSingleMotor(parts[1].charAt(0), Integer.parseInt(parts[2]), true);
+                } else {
+                    handleMove(parts, true);
+                }
+                break;
+                
+            case "BWD":
+            case "BACK":
+            case "BACKWARD":
+                handleMove(parts, false);
+                break;
+                
+            case "LEFT":
+                handleTurn(true);
+                break;
+                
+            case "RIGHT":
+                handleTurn(false);
+                break;
+                
+            case "STOP":
+                // Check if it's a single motor stop: STOP A
+                if (parts.length > 1 && parts[1].length() == 1 && Character.isLetter(parts[1].charAt(0))) {
+                    stopSingleMotor(parts[1].charAt(0));
+                } else {
+                    stopAllMotors();
+                }
+                break;
+                
+            case "BEEP":
+                int count = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+                for (int i = 0; i < Math.min(count, MAX_BEEP_COUNT); i++) {
+                    Sound.beep();
+                    try {
+                        Thread.sleep(BEEP_INTERVAL_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                break;
+                
+            case "BYE":
+                send("BYE:");
+                running.set(false);
+                break;
+            
+            case "TICK_ACK":
+                // Ignore TICK_ACK messages - don't display on LCD
+                break;
+                
+            default:
+                // Unknown command - ignore silently
+                break;
+        }
     }
-
-    public void sendLog(String logMsg) {
-        if (debug) {
-            try {
-                send(this.out, "LOG: " + logMsg);
-            } catch (IOException e) {
-                // Optionally handle send error
+    
+    /**
+     * Handles dual motor movement (forward/backward).
+     * 
+     * @param parts   Command parts where parts[1] may contain speed
+     * @param forward true for forward movement, false for backward
+     */
+    private void handleMove(String[] parts, boolean forward) {
+        int speed = parts.length > 1 ? Integer.parseInt(parts[1]) : DEFAULT_SPEED;
+        speed = clampSpeed(speed);
+        
+        BaseRegulatedMotor leftMotor = MotorFactory.getMotor('B');
+        BaseRegulatedMotor rightMotor = MotorFactory.getMotor('C');
+        
+        if (leftMotor != null && rightMotor != null) {
+            leftMotor.setSpeed(speed);
+            rightMotor.setSpeed(speed);
+            
+            if (forward) {
+                leftMotor.forward();
+                rightMotor.forward();
+            } else {
+                leftMotor.backward();
+                rightMotor.backward();
             }
         }
     }
-
-    public void say(String msg, boolean beep) {
-        DisplayUtils.say(msg, beep);
+    
+    /**
+     * Handles differential steering for turning.
+     * 
+     * @param left true to turn left, false to turn right
+     */
+    private void handleTurn(boolean left) {
+        BaseRegulatedMotor leftMotor = MotorFactory.getMotor('B');
+        BaseRegulatedMotor rightMotor = MotorFactory.getMotor('C');
+        
+        if (leftMotor != null && rightMotor != null) {
+            leftMotor.setSpeed(DEFAULT_TURN_SPEED);
+            rightMotor.setSpeed(DEFAULT_TURN_SPEED);
+            
+            if (left) {
+                leftMotor.backward();
+                rightMotor.forward();
+            } else {
+                leftMotor.forward();
+                rightMotor.backward();
+            }
+        }
     }
-
-    // Getters for command classes
-    public BufferedWriter getOut() {
-        return out;
+    
+    /**
+     * Handles individual motor control.
+     * 
+     * @param motorPort Motor port identifier (A, B, C, or D)
+     * @param speed     Speed in degrees per second
+     * @param forward   true for forward, false for backward
+     */
+    private void handleSingleMotor(char motorPort, int speed, boolean forward) {
+        BaseRegulatedMotor motor = MotorFactory.getMotor(motorPort);
+        if (motor != null) {
+            speed = clampSpeed(speed);
+            motor.setSpeed(speed);
+            if (forward) {
+                motor.forward();
+            } else {
+                motor.backward();
+            }
+        }
     }
-
-    public AtomicBoolean getRunning() {
-        return running;
+    
+    /**
+     * Stops a single motor.
+     * 
+     * @param motorPort Motor port identifier (A, B, C, or D)
+     */
+    private void stopSingleMotor(char motorPort) {
+        BaseRegulatedMotor motor = MotorFactory.getMotor(motorPort);
+        if (motor != null) {
+            motor.stop(true);
+        }
     }
-
-    public void setDebug(boolean debug) {
-        this.debug = debug;
+    
+    /**
+     * Emergency stop for all motors.
+     * Stops motors A, B, C, and D immediately.
+     */
+    private void stopAllMotors() {
+        char[] motorPorts = {'A', 'B', 'C', 'D'};
+        for (char port : motorPorts) {
+            BaseRegulatedMotor motor = MotorFactory.getMotor(port);
+            if (motor != null) {
+                motor.stop(true);
+            }
+        }
     }
-
-    public boolean isDebug() {
-        return debug;
+    
+    /**
+     * Clamps speed to valid range.
+     * 
+     * @param speed Speed to clamp
+     * @return Speed clamped between MIN_SPEED and MAX_SPEED
+     */
+    private int clampSpeed(int speed) {
+        return Math.max(MIN_SPEED, Math.min(MAX_SPEED, speed));
+    }
+    
+    /**
+     * Sends a message to the server.
+     * 
+     * @param msg Message to send (newline will be appended)
+     * @throws IOException if communication error occurs
+     */
+    private void send(String msg) throws IOException {
+        out.write(msg + "\n");
+        out.flush();
     }
 }

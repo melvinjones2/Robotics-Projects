@@ -10,6 +10,16 @@ import lejos.hardware.Battery;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
 public class BatteryLoggingCommand extends BaseCommand {
+    
+    /**
+     * Register this command with the registry.
+     */
+    public static void register(client.commands.CommandRegistry registry) {
+        registry.register(new client.commands.CommandMetadata(
+            "MOVE_AND_LOG", new BatteryLoggingCommand(), "Autonomous",
+            "Move motor and log battery data"
+        ));
+    }
 
     public void moveAndLog(int speed, int logCount, int intervalMs, CommandHandler context) {
         BaseRegulatedMotor motorA = MotorFactory.getMotor('A');

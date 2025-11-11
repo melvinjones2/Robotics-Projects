@@ -5,6 +5,16 @@ import client.network.CommandHandler;
 
 public class SetDebugCommand extends BaseCommand {
     
+    /**
+     * Register this command with the registry.
+     */
+    public static void register(client.commands.CommandRegistry registry) {
+        registry.register(new client.commands.CommandMetadata(
+            "SET_DEBUG", new SetDebugCommand(), "System",
+            "Enable/disable debug mode"
+        ));
+    }
+    
     @Override
     public void execute(String[] args, CommandHandler context) {
         if (!validateArgCount(context, args, 2, 2, "SET_DEBUG <0|1|on|off>")) {

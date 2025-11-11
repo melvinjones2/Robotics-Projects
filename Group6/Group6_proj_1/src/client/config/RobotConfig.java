@@ -12,18 +12,11 @@ public class RobotConfig {
     public static final int CONNECTION_TIMEOUT_MS = 5000;
     public static final int SOCKET_TIMEOUT_MS = 10000;
     
-    // Synchronization Configuration
-    public static final boolean ENABLE_ACK = true; // Enable command acknowledgments
-    public static final int ACK_TIMEOUT_MS = 2000;
-    public static final int MAX_FRAME_DRIFT = 100; // Maximum allowed frame difference
-    public static final int SYNC_CHECK_INTERVAL_MS = 5000;
-    public static final boolean ENABLE_HEARTBEAT = true;
-    
     // Motor Configuration
     public static final int DEFAULT_MOTOR_SPEED = 100;
     public static final int MIN_MOTOR_SPEED = 0;
     public static final int MAX_MOTOR_SPEED = 900;
-    public static final int DEFAULT_MOTOR_ACCELERATION = 200;
+    public static final int DEFAULT_MOTOR_ACCELERATION = 6000; // Maximum acceleration for fastest response
     public static final int ARM_SPEED = 200;
     public static final char ARM_MOTOR_PORT = 'A';
     
@@ -44,7 +37,7 @@ public class RobotConfig {
     public static final boolean DEBUG = false;
     
     // Motor port assignments (for easy reconfiguration)
-    public static final char[] DRIVE_MOTORS = {'A', 'B', 'C'};
+    public static final char[] DRIVE_MOTORS = {'B', 'C'}; // Only drive motors, not arm
     public static final char[] LEFT_MOTORS = {'B'};
     public static final char[] RIGHT_MOTORS = {'C'};
     

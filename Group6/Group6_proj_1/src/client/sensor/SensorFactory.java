@@ -48,15 +48,37 @@ public class SensorFactory {
         for (SensorConfig config : configs) {
             try {
                 ISensor sensor = createSensor(config);
-                if (sensor != null) {
+                if (sensor != null && sensor.isAvailable()) {
                     sensors.add(sensor);
+                    // Don't print to console - it shows on LCD
                 }
             } catch (Exception e) {
-                // Skip sensors that fail to initialize
-                System.err.println("Failed to create sensor: " + config.getType());
+                // Skip sensors that fail to initialize - no output
             }
         }
         return sensors;
+    }
+    
+    /**
+     * Create a sensor with retry logic for initialization.
+     * Useful when sensor might not be immediately available.
+     */
+    public static ISensor createSensorWithRetry(SensorConfig config, int maxRetries) {
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                ISensor sensor = createSensor(config);
+                if (sensor != null && sensor.isAvailable()) {
+                    return sensor;
+                }
+                // Wait briefly before retry
+                Thread.sleep(100);
+            } catch (Exception e) {
+                if (attempt == maxRetries - 1) {
+                    System.err.println("Failed to create sensor after " + maxRetries + " attempts: " + config.getType());
+                }
+            }
+        }
+        return null;
     }
     
     // Parse port from string (S1, S2, S3, S4)
