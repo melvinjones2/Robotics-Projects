@@ -3,19 +3,11 @@ package server.autonomous;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Server-side autonomous controller that analyzes sensor data from the client
- * and can issue commands with SERVER priority to override client-side autonomous mode.
- * 
- * This allows the human operator (server) to make higher-level decisions based on
- * all available sensor data while still respecting Asimov's Three Laws.
- */
+// Server-side autonomous control - analyzes client sensor data and issues commands
 public class ServerAutonomousController {
     
-    // Store latest sensor readings from client
     private final Map<String, SensorReading> sensorData = new ConcurrentHashMap<>();
     
-    // Thresholds for server-side decision making
     private static final float OBSTACLE_DISTANCE_CM = 25.0f;
     private static final float SAFE_DISTANCE_CM = 50.0f;
     private static final float TOUCH_PRESSED = 1.0f;
@@ -23,19 +15,12 @@ public class ServerAutonomousController {
     
     private volatile boolean enabled = false;
     private volatile long lastAnalysisTime = 0;
-    private static final long ANALYSIS_INTERVAL_MS = 1000; // Analyze every 1 second
+    private static final long ANALYSIS_INTERVAL_MS = 1000;
     
-    /**
-     * Update sensor reading from client.
-     */
     public void updateSensor(String sensorName, float value) {
         sensorData.put(sensorName, new SensorReading(sensorName, value, System.currentTimeMillis()));
     }
     
-    /**
-     * Parse sensor data message from client.
-     * Expected format: "SENSOR:ultrasonic=45.2,touch=0.0,light=35.0"
-     */
     public void parseSensorMessage(String message) {
         if (message == null || !message.startsWith("SENSOR:")) {
             return;
@@ -69,10 +54,6 @@ public class ServerAutonomousController {
         return enabled;
     }
     
-    /**
-     * Analyze current sensor data and return a command suggestion.
-     * Returns null if no action needed or if not enough time has passed.
-     */
     public String analyzeAndSuggest() {
         if (!enabled) {
             return null;
@@ -84,29 +65,24 @@ public class ServerAutonomousController {
         }
         lastAnalysisTime = now;
         
-        // Get sensor readings
         Float distance = getSensorValue("ultrasonic");
         Float touch = getSensorValue("touch");
         Float gyro = getSensorValue("gyro");
         Float light = getSensorValue("light");
         
-        // Check for emergency conditions (highest priority)
         if (touch != null && touch >= TOUCH_PRESSED) {
-            return "STOP"; // Touch sensor activated
+            return "STOP";
         }
         
         if (distance != null && distance < 10.0f) {
-            return "STOP"; // Very close obstacle
+            return "STOP";
         }
         
         if (gyro != null && Math.abs(gyro) > DANGEROUS_TILT) {
-            return "STOP"; // Dangerous tilt
+            return "STOP";
         }
         
-        // Check for navigation needs
         if (distance != null && distance < OBSTACLE_DISTANCE_CM) {
-            // Obstacle detected, suggest turning
-            // Alternate between left and right for variety
             if (System.currentTimeMillis() % 2 == 0) {
                 return "LEFT 200 500";
             } else {
@@ -114,19 +90,13 @@ public class ServerAutonomousController {
             }
         }
         
-        // All clear - could suggest forward movement if desired
         if (distance != null && distance > SAFE_DISTANCE_CM) {
-            // Path is clear, safe to move forward
-            // But don't auto-suggest movement unless explicitly in exploration mode
             return null;
         }
         
-        return null; // No suggestion
+        return null;
     }
     
-    /**
-     * Get the latest value for a sensor.
-     */
     public Float getSensorValue(String sensorName) {
         SensorReading reading = sensorData.get(sensorName);
         if (reading == null) {

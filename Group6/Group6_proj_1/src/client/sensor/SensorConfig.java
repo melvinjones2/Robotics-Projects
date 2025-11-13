@@ -5,7 +5,7 @@ import lejos.hardware.port.Port;
 // Configuration for a sensor instance
 public class SensorConfig {
     public enum SensorType {
-        TOUCH, ULTRASONIC, LIGHT, GYRO
+        TOUCH, ULTRASONIC, LIGHT, GYRO, INFRARED
     }
     
     private final SensorType type;

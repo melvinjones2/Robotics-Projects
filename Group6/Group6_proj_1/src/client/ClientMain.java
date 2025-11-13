@@ -19,44 +19,9 @@ import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Main entry point for the EV3 Robot Client.
- * 
- * <p>This client connects to a remote server and runs three concurrent threads:
- * <ul>
- *   <li>Heartbeat thread - Maintains connection with periodic TICK messages</li>
- *   <li>Command handler - Receives and executes commands from server</li>
- *   <li>Sensor thread - Reads sensors and reports data to server</li>
- * </ul>
- * 
- * <p>The client operates in a "thin client" architecture where the server handles all
- * decision-making logic, and the client simply executes commands and reports sensor data.
- * 
- * <p>LCD Layout:
- * <ul>
- *   <li>Line 0: Connection status (Init, OK, ERROR, Exit)</li>
- *   <li>Line 1: Last command received</li>
- *   <li>Lines 2-7: Sensor readings (6 lines available)</li>
- * </ul>
- * 
- * @author Group 6
- * @version 2.0
- */
+// EV3 robot client - connects to server, handles commands and sensor reporting
 public class ClientMain {
     
-    private static final int THREAD_JOIN_TIMEOUT_MS = 1000;
-    private static final int BUTTON_POLL_INTERVAL_MS = 100;
-    private static final int LCD_MAX_WIDTH = 18;
-    
-    /**
-     * Main entry point for the EV3 robot client application.
-     * 
-     * <p>Connects to the server, performs handshake, and starts worker threads
-     * for heartbeat, command handling, and sensor monitoring. Runs until the
-     * ESCAPE button is pressed or the connection is lost.
-     * 
-     * @param args Command line arguments (not used)
-     */
     public static void main(String[] args) {
         displayStatus("Init", "Connecting...");
         
@@ -89,10 +54,9 @@ public class ClientMain {
                 "heartbeat"
             );
             
-            Thread commands = new Thread(
-                new CommandHandler(in, out, running),
-                "commands"
-            );
+            // Store command handler reference for button control
+            final CommandHandler cmdHandler = new CommandHandler(in, out, running, sensors);
+            Thread commands = new Thread(cmdHandler, "commands");
             
             Thread sensorThread = new Thread(
                 new SensorThread(out, running, sensors, RobotConfig.SENSOR_POLL_INTERVAL_MS),
@@ -103,12 +67,19 @@ public class ClientMain {
             commands.start();
             sensorThread.start();
             
-            // Wait for ESCAPE button or connection loss
             while (running.get() && Button.ESCAPE.isUp()) {
-                Thread.sleep(BUTTON_POLL_INTERVAL_MS);
+                if (Button.DOWN.isDown()) {
+                    if (cmdHandler.getBallSearchController() != null) {
+                        cmdHandler.getBallSearchController().toggle();
+                        while (Button.DOWN.isDown() && running.get()) {
+                            Thread.sleep(50);
+                        }
+                    }
+                }
+                
+                Thread.sleep(RobotConfig.BUTTON_POLL_INTERVAL_MS);
             }
             
-            // Shutdown gracefully
             shutdown(running, heartbeat, commands, sensorThread);
             
         } catch (Exception e) {
@@ -121,15 +92,6 @@ public class ClientMain {
         Button.waitForAnyPress();
     }
     
-    /**
-     * Performs the handshake protocol with the server.
-     * Server sends HELLO, client responds with READY:0.
-     * 
-     * @param in  Input stream from server
-     * @param out Output stream to server
-     * @return true if handshake successful, false otherwise
-     * @throws IOException if communication error occurs
-     */
     private static boolean performHandshake(BufferedReader in, BufferedWriter out) throws IOException {
         LCD.clear(1);
         LCD.drawString("Handshake...", 0, 1);
@@ -140,63 +102,37 @@ public class ClientMain {
             return false;
         }
         
-        // Send ready response
         out.write("READY:0\n");
         out.flush();
         return true;
     }
     
-    /**
-     * Displays status message on LCD.
-     * 
-     * @param status  Status text for line 0
-     * @param message Message for line 1
-     */
     private static void displayStatus(String status, String message) {
         LCD.clear();
         LCD.drawString("Status: " + status, 0, 0);
         LCD.drawString(message, 0, 1);
     }
     
-    /**
-     * Displays error message on LCD.
-     * 
-     * @param message Primary error message
-     * @param details Additional details (can be null)
-     */
     private static void displayError(String message, String details) {
         LCD.clear();
         LCD.drawString("Status: ERROR", 0, 0);
         LCD.drawString(message, 0, 1);
         if (details != null && details.length() > 0) {
-            LCD.drawString(details.substring(0, Math.min(LCD_MAX_WIDTH, details.length())), 0, 2);
+            LCD.drawString(details.substring(0, Math.min(RobotConfig.LCD_MAX_WIDTH, details.length())), 0, 2);
         }
     }
     
-    /**
-     * Handles exceptions by displaying error on LCD.
-     * 
-     * @param e Exception to handle
-     */
     private static void handleError(Exception e) {
         LCD.clear();
         LCD.drawString("Status: ERROR", 0, 0);
         String msg = e.getMessage();
         if (msg != null && msg.length() > 0) {
-            LCD.drawString(msg.substring(0, Math.min(LCD_MAX_WIDTH, msg.length())), 0, 1);
+            LCD.drawString(msg.substring(0, Math.min(RobotConfig.LCD_MAX_WIDTH, msg.length())), 0, 1);
         } else {
             LCD.drawString(e.getClass().getSimpleName(), 0, 1);
         }
     }
     
-    /**
-     * Performs graceful shutdown of all threads and motors.
-     * 
-     * @param running       Shared running flag
-     * @param heartbeat     Heartbeat thread
-     * @param commands      Command handler thread
-     * @param sensorThread  Sensor thread
-     */
     private static void shutdown(AtomicBoolean running, Thread heartbeat, 
                                  Thread commands, Thread sensorThread) {
         running.set(false);
@@ -204,31 +140,24 @@ public class ClientMain {
         LCD.clear(0);
         LCD.drawString("Status: Exit", 0, 0);
         
-        // Stop all motors for safety
         MotorFactory.stopAll();
         
-        // Wait for threads to terminate
         try {
-            heartbeat.join(THREAD_JOIN_TIMEOUT_MS);
-            commands.join(THREAD_JOIN_TIMEOUT_MS);
-            sensorThread.join(THREAD_JOIN_TIMEOUT_MS);
+            heartbeat.join(RobotConfig.THREAD_JOIN_TIMEOUT_MS);
+            commands.join(RobotConfig.THREAD_JOIN_TIMEOUT_MS);
+            sensorThread.join(RobotConfig.THREAD_JOIN_TIMEOUT_MS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
     
-    /**
-     * Safely closes the socket connection.
-     * 
-     * @param socket Socket to close (can be null)
-     */
     private static void closeSocket(Socket socket) {
         if (socket != null) {
             try {
                 socket.close();
             } catch (Exception e) {
-                // Ignore - we're shutting down anyway
             }
         }
     }
 }
+

@@ -4,10 +4,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Simple heartbeat thread - keeps connection alive.
- * Sends periodic TICK messages to server with frame numbers.
- */
+// Sends periodic TICK messages to keep connection alive
 public class HeartbeatThread implements Runnable {
     
     private final BufferedWriter out;
@@ -25,17 +22,14 @@ public class HeartbeatThread implements Runnable {
     public void run() {
         while (running.get()) {
             try {
-                // Server expects "TICK:frameNumber" format
                 out.write("TICK:" + frameCount + "\n");
                 out.flush();
                 frameCount++;
                 Thread.sleep(intervalMs);
             } catch (IOException e) {
-                // Connection lost
                 running.set(false);
                 break;
             } catch (InterruptedException e) {
-                // Interrupted - exit gracefully
                 Thread.currentThread().interrupt();
                 break;
             }

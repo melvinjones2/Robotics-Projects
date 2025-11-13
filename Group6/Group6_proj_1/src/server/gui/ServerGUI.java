@@ -41,6 +41,12 @@ public class ServerGUI {
     private JLabel sensorStatusLabel;
     private JLabel threatLevelLabel;
     private JButton autoEnableButton;
+    private JPanel sensorDataPanel;
+    private JLabel ultrasonicLabel;
+    private JLabel gyroLabel;
+    private JLabel infraredLabel;
+    private JLabel touchLabel;
+    private JLabel colorLabel;
     
     /** Minimum interval between commands to prevent flooding */
     private long lastCommandTime = 0;
@@ -58,12 +64,10 @@ public class ServerGUI {
         final JFrame mainFrame = new JFrame("EV3 Server");
         mainFrame.setLayout(new BorderLayout());
 
-        // Log area
         logArea = new JTextArea(25, 80);
         logArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(logArea);
 
-        // Top panel with debug checkbox
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         final JCheckBox debugBox = new JCheckBox("Debug Mode");
         debugBox.setSelected(debugMode);
@@ -71,6 +75,9 @@ public class ServerGUI {
             @Override
             public void itemStateChanged(ItemEvent e) {
                 debugMode = debugBox.isSelected();
+                if (sensorDataPanel != null) {
+                    sensorDataPanel.setVisible(debugMode);
+                }
                 if (out != null) {
                     try {
                         send(out, "SET_DEBUG:" + (debugMode ? "1" : "0"));
@@ -81,6 +88,28 @@ public class ServerGUI {
             }
         });
         topPanel.add(debugBox);
+        
+        sensorDataPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        sensorDataPanel.setBorder(BorderFactory.createTitledBorder("Sensor Data (Debug Mode)"));
+        sensorDataPanel.setVisible(false);
+        
+        ultrasonicLabel = new JLabel("Ultrasonic: --");
+        gyroLabel = new JLabel("Gyro: --");
+        infraredLabel = new JLabel("Infrared: --");
+        touchLabel = new JLabel("Touch: --");
+        colorLabel = new JLabel("Color: --");
+        
+        sensorDataPanel.add(ultrasonicLabel);
+        sensorDataPanel.add(new JLabel(" | "));
+        sensorDataPanel.add(gyroLabel);
+        sensorDataPanel.add(new JLabel(" | "));
+        sensorDataPanel.add(infraredLabel);
+        sensorDataPanel.add(new JLabel(" | "));
+        sensorDataPanel.add(touchLabel);
+        sensorDataPanel.add(new JLabel(" | "));
+        sensorDataPanel.add(colorLabel);
+        
+        topPanel.add(sensorDataPanel);
 
         // Command panels organized by category
         JPanel commandsPanel = new JPanel(new GridLayout(0, 1, 5, 5));
@@ -96,7 +125,6 @@ public class ServerGUI {
         movementPanel.add(createCommandButton("Backward Fast", "BWD 500", out, frameCount));
         commandsPanel.add(movementPanel);
         
-        // Turn & Stop Commands Panel
         JPanel turnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         turnPanel.setBorder(BorderFactory.createTitledBorder("Turn & Stop"));
         turnPanel.add(createCommandButton("Turn Left", "LEFT 200", out, frameCount));
@@ -111,7 +139,6 @@ public class ServerGUI {
         turnPanel.add(emergencyButton);
         commandsPanel.add(turnPanel);
         
-        // Individual Motor Control Panel
         JPanel motorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         motorPanel.setBorder(BorderFactory.createTitledBorder("Individual Motor Control"));
         motorPanel.add(createCommandButton("Motor A Fwd", "MOVE A 200", out, frameCount));
@@ -124,25 +151,29 @@ public class ServerGUI {
         motorPanel.add(createCommandButton("Stop D", "STOP D", out, frameCount));
         commandsPanel.add(motorPanel);
         
-        // Rotation Control Panel
         JPanel rotatePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         rotatePanel.setBorder(BorderFactory.createTitledBorder("Rotation Control"));
-        rotatePanel.add(createCommandButton("Rotate Left 90°", "ROTATE B 90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate Left -90°", "ROTATE B -90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate Right 90°", "ROTATE C 90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate Right -90°", "ROTATE C -90", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate 180°", "ROTATE C 180", out, frameCount));
-        rotatePanel.add(createCommandButton("Rotate 360°", "ROTATE C 360", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Left 90°", "ROTATE ROBOT -90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate Right 90°", "ROTATE ROBOT 90", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate 180°", "ROTATE ROBOT 180", out, frameCount));
+        rotatePanel.add(createCommandButton("Rotate 360°", "ROTATE ROBOT 360", out, frameCount));
         commandsPanel.add(rotatePanel);
         
-        // Sensor & Battery Panel
+        JPanel armPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        armPanel.setBorder(BorderFactory.createTitledBorder("Arm Control"));
+        armPanel.add(createCommandButton("Arm Up", "ARM UP", out, frameCount));
+        armPanel.add(createCommandButton("Arm Down", "ARM DOWN", out, frameCount));
+        armPanel.add(createCommandButton("Arm -45°", "ARM -45", out, frameCount));
+        armPanel.add(createCommandButton("Arm -90°", "ARM -90", out, frameCount));
+        armPanel.add(createCommandButton("Arm 0°", "ARM 0", out, frameCount));
+        commandsPanel.add(armPanel);
+        
         JPanel sensorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         sensorPanel.setBorder(BorderFactory.createTitledBorder("Sensors & Battery"));
         sensorPanel.add(createCommandButton("Get Battery", "GET_BATTERY", out, frameCount));
         sensorPanel.add(createTestButton("Battery Log Test", out, frameCount));
         commandsPanel.add(sensorPanel);
         
-        // System Commands Panel
         JPanel systemPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         systemPanel.setBorder(BorderFactory.createTitledBorder("System Commands"));
         systemPanel.add(createCommandButton("Beep", "BEEP", out, frameCount));
@@ -153,13 +184,11 @@ public class ServerGUI {
         systemPanel.add(byeButton);
         commandsPanel.add(systemPanel);
         
-        // Server Autonomous Control Panel
         if (autonomousController != null) {
             JPanel autoPanel = createAutonomousPanel(out, frameCount);
             commandsPanel.add(autoPanel);
         }
         
-        // Manual Command Panel
         JPanel manualPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         manualPanel.setBorder(BorderFactory.createTitledBorder("Manual Command"));
         commandField = new JTextField(40);
@@ -169,7 +198,6 @@ public class ServerGUI {
         manualPanel.add(sendButton);
         commandsPanel.add(manualPanel);
 
-        // Add panels to frame
         mainFrame.add(topPanel, BorderLayout.NORTH);
         mainFrame.add(scrollPane, BorderLayout.CENTER);
         mainFrame.add(commandsPanel, BorderLayout.SOUTH);
@@ -179,7 +207,6 @@ public class ServerGUI {
         mainFrame.setLocation(100, 100);
         mainFrame.setVisible(true);
 
-        // Manual command send action
         @SuppressWarnings("Convert2Lambda")
         ActionListener sendAction = new ActionListener() {
             @Override
@@ -187,7 +214,6 @@ public class ServerGUI {
                 String line = commandField.getText().trim();
                 if (!line.isEmpty() && out != null) {
                     try {
-                        // Send command WITHOUT frame number - client doesn't expect it
                         send(out, line);
                         if ("BYE".equalsIgnoreCase(line)) {
                             running.set(false);
@@ -298,6 +324,77 @@ public class ServerGUI {
         });
         autoPanel.add(summaryButton);
         
+        // Scan for ball button (client-side autonomous - single scan)
+        JButton scanBallButton = new JButton("Scan for Ball");
+        scanBallButton.setBackground(new Color(100, 200, 255));
+        scanBallButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (out != null) {
+                    try {
+                        send(out, "SCAN");
+                        appendLog("[CLIENT SCAN] Ball scan initiated", false);
+                    } catch (IOException ex) {
+                        appendLog("Error sending SCAN command: " + ex.getMessage(), false);
+                    }
+                } else {
+                    appendLog("No client connected", false);
+                }
+            }
+        });
+        autoPanel.add(scanBallButton);
+        
+        // Auto search button (client-side autonomous - continuous exploration)
+        final JButton autoSearchButton = new JButton("Auto Search: OFF");
+        autoSearchButton.setBackground(new Color(150, 255, 150));
+        autoSearchButton.addActionListener(new ActionListener() {
+            private boolean searchEnabled = false;
+            
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (out != null) {
+                    try {
+                        searchEnabled = !searchEnabled;
+                        send(out, "AUTOSEARCH " + (searchEnabled ? "ON" : "OFF"));
+                        autoSearchButton.setText("Auto Search: " + (searchEnabled ? "ON" : "OFF"));
+                        autoSearchButton.setBackground(searchEnabled ? 
+                            new Color(255, 150, 150) : new Color(150, 255, 150));
+                        appendLog("[CLIENT AUTOSEARCH] " + (searchEnabled ? "Started" : "Stopped"), false);
+                    } catch (IOException ex) {
+                        appendLog("Error sending AUTOSEARCH command: " + ex.getMessage(), false);
+                    }
+                } else {
+                    appendLog("No client connected", false);
+                }
+            }
+        });
+        autoPanel.add(autoSearchButton);
+        
+        // Color selection for ball detection
+        autoPanel.add(new JLabel("Target Ball:"));
+        final JComboBox<String> colorCombo = new JComboBox<String>(
+            new String[]{"Black", "Blue", "Green", "Yellow", "Red", "White"}
+        );
+        colorCombo.setSelectedIndex(4); // Default to Red (index 4, colorId 5)
+        colorCombo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (out != null) {
+                    int colorId = colorCombo.getSelectedIndex() + 1; // 1=Black, 2=Blue, etc.
+                    String colorName = (String) colorCombo.getSelectedItem();
+                    try {
+                        send(out, "SETCOLOR " + colorId);
+                        appendLog("[COLOR] Target ball set to: " + colorName, false);
+                    } catch (IOException ex) {
+                        appendLog("Error sending SETCOLOR command: " + ex.getMessage(), false);
+                    }
+                } else {
+                    appendLog("No client connected", false);
+                }
+            }
+        });
+        autoPanel.add(colorCombo);
+        
         // Start a timer to update sensor status
         Timer updateTimer = new Timer(1000, new ActionListener() {
             @Override
@@ -314,13 +411,30 @@ public class ServerGUI {
     private void updateSensorStatus() {
         if (autonomousController == null) return;
         
-        Float distance = autonomousController.getSensorValue("ultrasonic");
+        Float ultrasonic = autonomousController.getSensorValue("ultrasonic");
         Float touch = autonomousController.getSensorValue("touch");
+        Float gyro = autonomousController.getSensorValue("gyro");
+        Float infrared = autonomousController.getSensorValue("infrared");
+        Float light = autonomousController.getSensorValue("light");
         
         String status = String.format("Distance:%.1fcm Touch:%.0f", 
-                                    distance != null ? distance : 0.0, 
+                                    ultrasonic != null ? ultrasonic : 0.0, 
                                     touch != null ? touch : 0.0);
         sensorStatusLabel.setText(status);
+        
+        // Update detailed sensor data labels (for debug panel)
+        if (debugMode && sensorDataPanel != null && sensorDataPanel.isVisible()) {
+            ultrasonicLabel.setText(String.format("Ultrasonic: %.1fcm", 
+                ultrasonic != null ? ultrasonic : 0.0));
+            gyroLabel.setText(String.format("Gyro: %.1f°/s", 
+                gyro != null ? gyro : 0.0));
+            infraredLabel.setText(String.format("Infrared: %.1fcm", 
+                infrared != null ? infrared : 0.0));
+            touchLabel.setText(String.format("Touch: %.0f", 
+                touch != null ? touch : 0.0));
+            colorLabel.setText(String.format("Light: %.1f", 
+                light != null ? light : 0.0));
+        }
         
         ServerAutonomousController.ThreatLevel threat = autonomousController.getThreatLevel();
         threatLevelLabel.setText("Threat: " + threat);

@@ -13,20 +13,14 @@ public class GyroSensor implements ISensor {
     private String mode;
     private boolean closed = false;
 
-    // Default: S3, "angle"
     public GyroSensor() {
         this(SensorPort.S3, "angle");
     }
 
-    // Default mode: "angle"
     public GyroSensor(Port port) {
         this(port, "angle");
     }
 
-    /**
-     * @param port SensorPort
-     * @param mode "angle" or "rate"
-     */
     public GyroSensor(Port port, String mode) {
         sensor = new EV3GyroSensor(port);
         this.mode = mode.toLowerCase();
@@ -53,11 +47,8 @@ public class GyroSensor implements ISensor {
         try {
             provider.fetchSample(sample, 0);
             
-            // Simple format: gyro=value
-            // Angle mode returns degrees, rate mode returns degrees/sec
             return "gyro=" + String.format("%.1f", sample[0]);
         } catch (Exception e) {
-            // Sensor read error (disconnected, hardware failure)
             return null;
         }
     }
@@ -76,11 +67,6 @@ public class GyroSensor implements ISensor {
         }
     }
     
-    /**
-     * Reset the gyro angle to zero (calibration).
-     * Only affects angle mode, not rate mode.
-     * Important: Robot must be stationary during reset.
-     */
     public void reset() {
         if (!closed && sensor != null) {
             try {

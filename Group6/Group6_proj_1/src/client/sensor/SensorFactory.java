@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import client.sensor.impl.GyroSensor;
+import client.sensor.impl.InfraredSensor;
 import client.sensor.impl.LightSensor;
 import client.sensor.impl.TouchSensor;
 import client.sensor.impl.UltrasonicSensor;
@@ -37,6 +38,12 @@ public class SensorFactory {
                 }
                 return new GyroSensor(config.getPort());
                 
+            case INFRARED:
+                if (config.getMode() != null) {
+                    return new InfraredSensor(config.getPort(), config.getMode());
+                }
+                return new InfraredSensor(config.getPort());
+                
             default:
                 return null;
         }
@@ -59,10 +66,6 @@ public class SensorFactory {
         return sensors;
     }
     
-    /**
-     * Create a sensor with retry logic for initialization.
-     * Useful when sensor might not be immediately available.
-     */
     public static ISensor createSensorWithRetry(SensorConfig config, int maxRetries) {
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -106,6 +109,7 @@ public class SensorFactory {
         if (type.contains("ULTRA") || type.equals("US")) return SensorConfig.SensorType.ULTRASONIC;
         if (type.contains("LIGHT") || type.contains("COLOR")) return SensorConfig.SensorType.LIGHT;
         if (type.contains("GYRO")) return SensorConfig.SensorType.GYRO;
+        if (type.contains("INFRARED") || type.contains("IR")) return SensorConfig.SensorType.INFRARED;
         
         return null;
     }
@@ -113,10 +117,15 @@ public class SensorFactory {
     // Create default sensor configuration
     public static List<SensorConfig> getDefaultSensorConfig() {
         List<SensorConfig> configs = new ArrayList<>();
-        configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S1, "listen"));
-        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S2, "rgb")); // right
+//        configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S1, "distance")); // FIXED: Changed from "listen" to "distance" for ball detection
+//        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S2, "rgb")); // right
+//        configs.add(new SensorConfig(SensorConfig.SensorType.GYRO, SensorPort.S3, "rate"));
+//        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // left
+        
+        configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S2, "distance"));
+        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // right
         configs.add(new SensorConfig(SensorConfig.SensorType.GYRO, SensorPort.S3, "rate"));
-        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // left
+        configs.add(new SensorConfig(SensorConfig.SensorType.INFRARED, SensorPort.S1, "distance"));
         return configs;
     }
 }

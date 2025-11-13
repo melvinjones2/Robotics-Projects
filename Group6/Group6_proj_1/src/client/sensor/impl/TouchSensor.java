@@ -35,11 +35,8 @@ public class TouchSensor implements ISensor {
         
         try {
             provider.fetchSample(sample, 0);
-            // Touch sensor returns 1.0 when pressed, 0.0 when released
-            // Simple format: touch=1 or touch=0
             return "touch=" + (sample[0] > 0.5f ? "1" : "0");
         } catch (Exception e) {
-            // Sensor read error (disconnected, hardware failure)
             return null;
         }
     }

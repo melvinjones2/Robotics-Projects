@@ -12,21 +12,20 @@ public class UltrasonicSensor implements ISensor {
     private float[] sample;
     private String mode;
     private boolean closed = false;
+    
+    private static final int FILTER_SIZE = 5;
+    private float[] filterBuffer = new float[FILTER_SIZE];
+    private int filterIndex = 0;
+    private int filterCount = 0;
 
-    // Default: S1, "distance"
     public UltrasonicSensor() {
         this(SensorPort.S1, "distance");
     }
 
-    // Default mode: "distance"
     public UltrasonicSensor(Port port) {
         this(port, "distance");
     }
 
-    /**
-     * @param port SensorPort
-     * @param mode "distance" or "listen"
-     */
     public UltrasonicSensor(Port port, String mode) {
         sensor = new EV3UltrasonicSensor(port);
         this.mode = mode.toLowerCase();
@@ -53,25 +52,49 @@ public class UltrasonicSensor implements ISensor {
         try {
             provider.fetchSample(sample, 0);
             
-            // Distance mode returns meters - convert to cm for readability
             if ("distance".equals(mode)) {
                 float distanceCm = sample[0] * 100.0f;
                 
-                // Ultrasonic max range is ~255cm, check for valid range
                 if (distanceCm > 255.0f || Float.isNaN(distanceCm)) {
-                    distanceCm = 255.0f; // Max out-of-range value
+                    distanceCm = 255.0f;
                 }
                 
-                // Simple format: ultrasonic=45.2
-                return "ultrasonic=" + String.format("%.1f", distanceCm);
+                float filteredDist = applyMedianFilter(distanceCm);
+                
+                return "ultrasonic=" + String.format("%.1f", filteredDist);
             } else {
-                // Listen mode returns 0 or 1 (boolean - detects other ultrasonic sensors)
                 return "ultrasonic=" + (sample[0] > 0.5f ? "1" : "0");
             }
         } catch (Exception e) {
-            // Sensor read error (disconnected, hardware failure)
             return null;
         }
+    }
+    
+    private float applyMedianFilter(float newValue) {
+        filterBuffer[filterIndex] = newValue;
+        filterIndex = (filterIndex + 1) % FILTER_SIZE;
+        if (filterCount < FILTER_SIZE) {
+            filterCount++;
+        }
+        
+        if (filterCount < 3) {
+            return newValue;
+        }
+        
+        float[] sorted = new float[filterCount];
+        System.arraycopy(filterBuffer, 0, sorted, 0, filterCount);
+        
+        for (int i = 0; i < filterCount - 1; i++) {
+            for (int j = 0; j < filterCount - i - 1; j++) {
+                if (sorted[j] > sorted[j + 1]) {
+                    float temp = sorted[j];
+                    sorted[j] = sorted[j + 1];
+                    sorted[j + 1] = temp;
+                }
+            }
+        }
+        
+        return sorted[filterCount / 2];
     }
 
     @Override
