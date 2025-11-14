@@ -3,6 +3,7 @@ package client.network;
 import client.autonomous.BallDetector;
 import client.autonomous.BallSearchController;
 import client.config.RobotConfig;
+import client.motor.DifferentialDrive;
 import client.motor.MotorFactory;
 import client.sensor.ISensor;
 import lejos.hardware.lcd.LCD;
@@ -22,14 +23,17 @@ public class CommandHandler implements Runnable {
     private final BufferedWriter out;
     private final AtomicBoolean running;
     private final List<ISensor> sensors;
+    private final DifferentialDrive drive;
     private BallDetector ballDetector;
     private BallSearchController ballSearchController;
+    private Thread ballScanThread;
     
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, List<ISensor> sensors) {
         this.in = in;
         this.out = out;
         this.running = running;
         this.sensors = sensors;
+        this.drive = new DifferentialDrive();
         this.ballDetector = null;
         this.ballSearchController = null;
     }
@@ -72,7 +76,8 @@ public class CommandHandler implements Runnable {
             LCD.drawString("Conn Lost", 0, 1);
         } finally {
             running.set(false);
-            stopAllMotors();
+            shutdownBallTasks();
+            MotorFactory.stopAll();
         }
     }
     
@@ -116,7 +121,8 @@ public class CommandHandler implements Runnable {
                 if (parts.length > 1 && parts[1].length() == 1 && Character.isLetter(parts[1].charAt(0))) {
                     stopSingleMotor(parts[1].charAt(0));
                 } else {
-                    stopAllMotors();
+                    shutdownBallTasks();
+                    MotorFactory.stopAll();
                 }
                 break;
                 
@@ -169,41 +175,11 @@ public class CommandHandler implements Runnable {
     
     private void handleMove(String[] parts, boolean forward) {
         int speed = parts.length > 1 ? Integer.parseInt(parts[1]) : RobotConfig.COMMAND_DEFAULT_SPEED;
-        speed = clampSpeed(speed);
-        
-        BaseRegulatedMotor leftMotor = MotorFactory.getMotor(RobotConfig.LEFT_MOTOR_PORT);
-        BaseRegulatedMotor rightMotor = MotorFactory.getMotor(RobotConfig.RIGHT_MOTOR_PORT);
-        
-        if (leftMotor != null && rightMotor != null) {
-            leftMotor.setSpeed(speed);
-            rightMotor.setSpeed(speed);
-            
-            if (forward) {
-                leftMotor.forward();
-                rightMotor.forward();
-            } else {
-                leftMotor.backward();
-                rightMotor.backward();
-            }
-        }
+        drive.move(forward, speed);
     }
     
     private void handleTurn(boolean left) {
-        BaseRegulatedMotor leftMotor = MotorFactory.getMotor(RobotConfig.LEFT_MOTOR_PORT);
-        BaseRegulatedMotor rightMotor = MotorFactory.getMotor(RobotConfig.RIGHT_MOTOR_PORT);
-        
-        if (leftMotor != null && rightMotor != null) {
-            leftMotor.setSpeed(RobotConfig.COMMAND_TURN_SPEED);
-            rightMotor.setSpeed(RobotConfig.COMMAND_TURN_SPEED);
-            
-            if (left) {
-                leftMotor.backward();
-                rightMotor.forward();
-            } else {
-                leftMotor.forward();
-                rightMotor.backward();
-            }
-        }
+        drive.turnInPlace(left, RobotConfig.COMMAND_TURN_SPEED);
     }
     
     /**
@@ -214,27 +190,14 @@ public class CommandHandler implements Runnable {
      * @param degrees   Degrees to rotate the robot (positive=right, negative=left)
      */
     private void handleRotate(char motorPort, int degrees) {
-        BaseRegulatedMotor leftMotor = MotorFactory.getMotor(RobotConfig.LEFT_MOTOR_PORT);
-        BaseRegulatedMotor rightMotor = MotorFactory.getMotor(RobotConfig.RIGHT_MOTOR_PORT);
+        if (motorPort == 'R' || motorPort == 'r') {
+            drive.rotateDegrees(degrees);
+            return;
+        }
         
-        if (leftMotor != null && rightMotor != null) {
-            // Set moderate speed for rotation
-            leftMotor.setSpeed(RobotConfig.ROTATION_SPEED);
-            rightMotor.setSpeed(RobotConfig.ROTATION_SPEED);
-            
-            // Calculate motor rotation degrees
-            // This is an approximation - adjust ROTATION_MULTIPLIER in RobotConfig if needed
-            int motorDegrees = (int) Math.abs(degrees * RobotConfig.ROTATION_MULTIPLIER);
-            
-            if (degrees > 0) {
-                // Turn right: left motor forward, right motor backward
-                leftMotor.rotate(motorDegrees, true);
-                rightMotor.rotate(-motorDegrees, false);
-            } else {
-                // Turn left: left motor backward, right motor forward
-                leftMotor.rotate(-motorDegrees, true);
-                rightMotor.rotate(motorDegrees, false);
-            }
+        BaseRegulatedMotor motor = MotorFactory.getMotor(motorPort);
+        if (motor != null) {
+            motor.rotate(degrees, false);
         }
     }
     
@@ -258,20 +221,6 @@ public class CommandHandler implements Runnable {
         }
     }
     
-    private void stopAllMotors() {
-        char[] motorPorts = {'A', 'B', 'C', 'D'};
-        for (char port : motorPorts) {
-            BaseRegulatedMotor motor = MotorFactory.getMotor(port);
-            if (motor != null) {
-                motor.stop(true);
-            }
-        }
-    }
-    
-    private int clampSpeed(int speed) {
-        return Math.max(RobotConfig.MIN_MOTOR_SPEED, Math.min(RobotConfig.MAX_MOTOR_SPEED, speed));
-    }
-    
     private void handleScan() {
         if (ballDetector == null && sensors != null) {
             ISensor ultrasonicSensor = findSensor("ultrasonic");
@@ -283,38 +232,29 @@ public class CommandHandler implements Runnable {
         }
         
         if (ballDetector != null) {
+            stopActiveScan();
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("SCANNING...", 0, RobotConfig.LCD_COMMAND_LINE);
             
-            Thread scanThread = new Thread(new Runnable() {
+            ballScanThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     try {
                         boolean found = ballDetector.searchAndApproachBall();
-                        if (found) {
-                            send("SCAN:FOUND");
-                        } else {
-                            send("SCAN:NOT_FOUND");
-                        }
+                        sendSilently(found ? "SCAN:FOUND" : "SCAN:NOT_FOUND");
                     } catch (Exception e) {
-                        try {
-                            send("SCAN:ERROR");
-                        } catch (IOException ex) {
-                            // Can't send error message
-                        }
+                        sendSilently("SCAN:ERROR");
+                    } finally {
+                        ballScanThread = null;
                     }
                 }
             }, "ball-scan");
             
-            scanThread.start();
+            ballScanThread.start();
         } else {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("SCAN: No sensors", 0, RobotConfig.LCD_COMMAND_LINE);
-            try {
-                send("SCAN:NO_SENSORS");
-            } catch (IOException e) {
-                // Can't send error message
-            }
+            sendSilently("SCAN:NO_SENSORS");
         }
     }
     
@@ -332,36 +272,24 @@ public class CommandHandler implements Runnable {
             switch (mode) {
                 case "ON":
                     ballSearchController.setEnabled(true);
-                    try {
-                        send("AUTOSEARCH:ON");
-                    } catch (IOException e) {
-                    }
+                    sendSilently("AUTOSEARCH:ON");
                     break;
                     
                 case "OFF":
                     ballSearchController.setEnabled(false);
-                    try {
-                        send("AUTOSEARCH:OFF");
-                    } catch (IOException e) {
-                    }
+                    sendSilently("AUTOSEARCH:OFF");
                     break;
                     
                 case "TOGGLE":
                 default:
                     ballSearchController.toggle();
-                    try {
-                        send("AUTOSEARCH:" + (ballSearchController.isEnabled() ? "ON" : "OFF"));
-                    } catch (IOException e) {
-                    }
+                    sendSilently("AUTOSEARCH:" + (ballSearchController.isEnabled() ? "ON" : "OFF"));
                     break;
             }
         } else {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("AUTOSEARCH: No Dist", 0, RobotConfig.LCD_COMMAND_LINE);
-            try {
-                send("AUTOSEARCH:NO_SENSORS");
-            } catch (IOException e) {
-            }
+            sendSilently("AUTOSEARCH:NO_SENSORS");
         }
     }
     
@@ -400,7 +328,7 @@ public class CommandHandler implements Runnable {
             } else {
                 try {
                     targetPosition = Integer.parseInt(parameter);
-                    action = parameter + "°";
+                    action = parameter + "deg";
                 } catch (NumberFormatException e) {
                     LCD.clear(RobotConfig.LCD_COMMAND_LINE);
                     LCD.drawString("ARM: Invalid", 0, RobotConfig.LCD_COMMAND_LINE);
@@ -412,10 +340,7 @@ public class CommandHandler implements Runnable {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("ARM: " + action, 0, RobotConfig.LCD_COMMAND_LINE);
             
-            try {
-                send("ARM:" + action);
-            } catch (IOException e) {
-            }
+            sendSilently("ARM:" + action);
         } else {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("ARM: No Motor", 0, RobotConfig.LCD_COMMAND_LINE);
@@ -432,10 +357,7 @@ public class CommandHandler implements Runnable {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("Color: " + colorName, 0, RobotConfig.LCD_COMMAND_LINE);
             
-            try {
-                send("SETCOLOR:" + colorName);
-            } catch (IOException e) {
-            }
+            sendSilently("SETCOLOR:" + colorName);
         } else {
             LCD.clear(RobotConfig.LCD_COMMAND_LINE);
             LCD.drawString("Color: Invalid", 0, RobotConfig.LCD_COMMAND_LINE);
@@ -445,5 +367,41 @@ public class CommandHandler implements Runnable {
     private void send(String msg) throws IOException {
         out.write(msg + "\n");
         out.flush();
+    }
+
+    private void sendSilently(String msg) {
+        try {
+            send(msg);
+        } catch (IOException e) {
+            // Connection already failed; ignore
+        }
+    }
+
+    private int clampSpeed(int speed) {
+        return DifferentialDrive.clampSpeed(speed);
+    }
+    
+    private void shutdownBallTasks() {
+        if (ballSearchController != null && ballSearchController.isEnabled()) {
+            ballSearchController.setEnabled(false);
+        }
+        if (ballDetector != null) {
+            ballDetector.stop();
+        }
+        stopActiveScan();
+    }
+    
+    private void stopActiveScan() {
+        if (ballScanThread != null && ballScanThread.isAlive()) {
+            if (ballDetector != null) {
+                ballDetector.stop();
+            }
+            try {
+                ballScanThread.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            ballScanThread = null;
+        }
     }
 }

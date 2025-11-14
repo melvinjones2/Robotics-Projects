@@ -11,26 +11,7 @@ import javax.swing.*;
 import server.autonomous.ServerAutonomousController;
 import server.logging.LogManager;
 
-/**
- * Graphical User Interface for the EV3 Robot Server.
- * 
- * <p>Provides a comprehensive control panel for sending commands to connected robots,
- * monitoring sensor data, and managing autonomous control features. The GUI includes:
- * <ul>
- *   <li>Movement controls (forward, backward, turning)</li>
- *   <li>Individual motor control</li>
- *   <li>Rotation control for precise movements</li>
- *   <li>Sensor and battery monitoring</li>
- *   <li>System commands (beep, disconnect)</li>
- *   <li>Server autonomous control with threat detection</li>
- *   <li>Manual command input</li>
- *   <li>Debug mode toggle</li>
- *   <li>Command throttling to prevent flooding</li>
- * </ul>
- * 
- * @author Group 6
- * @version 2.0
- */
+// GUI for EV3 Robot Server with control panel, sensor monitoring, and autonomous features
 public class ServerGUI {
 
     private JTextArea logArea;
@@ -52,12 +33,10 @@ public class ServerGUI {
     private long lastCommandTime = 0;
     private static final long MIN_COMMAND_INTERVAL_MS = 200;
 
-    @SuppressWarnings("Convert2Lambda")
     public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, final AtomicBoolean running) {
         setupMainWindow(out, frameCount, running, null);
     }
     
-    @SuppressWarnings("Convert2Lambda")
     public void setupMainWindow(final BufferedWriter out, final AtomicInteger frameCount, 
                                final AtomicBoolean running, ServerAutonomousController autoController) {
         this.autonomousController = autoController;
@@ -238,8 +217,6 @@ public class ServerGUI {
         });
     }
     
-    // Create autonomous control panel
-    @SuppressWarnings("Convert2Lambda")
     private JPanel createAutonomousPanel(final BufferedWriter out, final AtomicInteger frameCount) {
         JPanel autoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         autoPanel.setBorder(BorderFactory.createTitledBorder("Server Autonomous Control (SERVER Priority)"));
@@ -451,7 +428,6 @@ public class ServerGUI {
         }
     }
     
-    // Helper method to create command buttons
     private JButton createCommandButton(String label, final String command, 
                                        final BufferedWriter out, final AtomicInteger frameCount) {
         JButton button = new JButton(label);
@@ -485,7 +461,6 @@ public class ServerGUI {
         return button;
     }
     
-    // Helper method to create the battery log test button
     private JButton createTestButton(String label, final BufferedWriter out, final AtomicInteger frameCount) {
         JButton button = new JButton(label);
         button.addActionListener(new ActionListener() {

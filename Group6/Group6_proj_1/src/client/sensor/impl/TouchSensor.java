@@ -1,69 +1,30 @@
 package client.sensor.impl;
 
-import client.sensor.ISensor;
 import lejos.hardware.port.Port;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.EV3TouchSensor;
-import lejos.robotics.SampleProvider;
 
-public class TouchSensor implements ISensor {
-    private EV3TouchSensor sensor;
-    private SampleProvider provider;
-    private float[] sample;
-    private boolean closed = false;
+public class TouchSensor extends BaseSampleSensor<EV3TouchSensor> {
 
     public TouchSensor() {
         this(SensorPort.S2);
     }
 
     public TouchSensor(Port port) {
-        sensor = new EV3TouchSensor(port);
-        provider = sensor.getTouchMode();
-        sample = new float[provider.sampleSize()];
+        this(new EV3TouchSensor(port));
     }
 
-    @Override
-    public String getName() {
-        return "touch";
-    }
-
-    @Override
-    public String readValue() {
-        if (closed || sensor == null) {
-            return null;
-        }
-        
-        try {
-            provider.fetchSample(sample, 0);
-            return "touch=" + (sample[0] > 0.5f ? "1" : "0");
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Override
-    public boolean isAvailable() {
-        if (closed || sensor == null) {
-            return false;
-        }
-        
-        try {
-            provider.fetchSample(sample, 0);
-            return !Float.isNaN(sample[0]);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    @Override
-    public void close() {
-        if (!closed && sensor != null) {
-            try {
+    private TouchSensor(EV3TouchSensor sensor) {
+        super("touch", sensor, sensor.getTouchMode(), new SensorCloser<EV3TouchSensor>() {
+            @Override
+            public void close(EV3TouchSensor sensor) {
                 sensor.close();
-            } catch (Exception e) {
-                // Ignore errors during close
             }
-            closed = true;
-        }
+        });
+    }
+
+    @Override
+    protected String formatSample(float[] sample) {
+        return "touch=" + (sample[0] > 0.5f ? "1" : "0");
     }
 }

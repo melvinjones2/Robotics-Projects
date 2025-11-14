@@ -6,17 +6,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import server.autonomous.ServerAutonomousController;
 import server.gui.ServerGUI;
 import server.handlers.BatteryLoggingMessageHandler;
 import server.handlers.BatteryMessageHandler;
-import server.handlers.BeepMessageHandler;
 import server.handlers.ByeMessageHandler;
 import server.handlers.ControlMessageHandler;
+import server.handlers.GenericMessageHandler;
 import server.handlers.IMessageHandler;
-import server.handlers.LogMessageHandler;
-import server.handlers.MotorMessageHandler;
 import server.handlers.ReplyMessageHandler;
 import server.handlers.SensorMessageHandler;
 import server.handlers.TickAckMessageHandler;
@@ -51,12 +48,12 @@ public class MessageDispatcher {
         handlers.put("BATTERY:", new BatteryMessageHandler(gui));
         handlers.put("REPLY:", new ReplyMessageHandler(gui));
         handlers.put("CONTROL:", new ControlMessageHandler(gui));
-        handlers.put("MOTOR:", new MotorMessageHandler(gui));
-        handlers.put("LOG:", new LogMessageHandler(gui));
+        handlers.put("MOTOR:", new GenericMessageHandler(gui, "MOTOR", 6));
+        handlers.put("LOG:", new GenericMessageHandler(gui, "LOG", 4));
         handlers.put("TICK_ACK:", new TickAckMessageHandler(gui));
         handlers.put("TICK:", new TickMessageHandler(gui, frameCount));
         handlers.put("BYE:", new ByeMessageHandler(gui, running, frameCount));
-        handlers.put("BEEP:", new BeepMessageHandler(gui));
+        handlers.put("BEEP:", new GenericMessageHandler(gui, "BEEP", 5));
         handlers.put("BATTERY_LOGGING:", new BatteryLoggingMessageHandler(gui));
     }
 

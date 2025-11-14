@@ -1,17 +1,13 @@
 package client.sensor.impl;
 
-import client.sensor.ISensor;
 import lejos.hardware.port.Port;
 import lejos.hardware.port.SensorPort;
 import lejos.hardware.sensor.EV3GyroSensor;
 import lejos.robotics.SampleProvider;
 
-public class GyroSensor implements ISensor {
-    private EV3GyroSensor sensor;
-    private SampleProvider provider;
-    private float[] sample;
-    private String mode;
-    private boolean closed = false;
+public class GyroSensor extends BaseSampleSensor<EV3GyroSensor> {
+
+    private final String mode;
 
     public GyroSensor() {
         this(SensorPort.S3, "angle");
@@ -22,70 +18,46 @@ public class GyroSensor implements ISensor {
     }
 
     public GyroSensor(Port port, String mode) {
-        sensor = new EV3GyroSensor(port);
-        this.mode = mode.toLowerCase();
-        if ("rate".equals(this.mode)) {
-            provider = sensor.getRateMode();
-        } else {
-            provider = sensor.getAngleMode();
-            this.mode = "angle";
-        }
-        sample = new float[provider.sampleSize()];
+        this(new EV3GyroSensor(port), normalizeMode(mode));
     }
 
-    @Override
-    public String getName() {
-        return "gyro";
-    }
-
-    @Override
-    public String readValue() {
-        if (closed || sensor == null) {
-            return null;
-        }
-        
-        try {
-            provider.fetchSample(sample, 0);
-            
-            return "gyro=" + String.format("%.1f", sample[0]);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Override
-    public boolean isAvailable() {
-        if (closed || sensor == null) {
-            return false;
-        }
-        
-        try {
-            provider.fetchSample(sample, 0);
-            return !Float.isNaN(sample[0]);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    public void reset() {
-        if (!closed && sensor != null) {
-            try {
-                sensor.reset();
-            } catch (Exception e) {
-                // Ignore reset errors
-            }
-        }
-    }
-
-    @Override
-    public void close() {
-        if (!closed && sensor != null) {
-            try {
+    private GyroSensor(EV3GyroSensor sensor, String mode) {
+        super("gyro", sensor, selectProvider(sensor, mode), new SensorCloser<EV3GyroSensor>() {
+            @Override
+            public void close(EV3GyroSensor sensor) {
                 sensor.close();
-            } catch (Exception e) {
-                // Ignore errors during close
             }
-            closed = true;
+        });
+        this.mode = mode;
+    }
+
+    private static String normalizeMode(String mode) {
+        if (mode == null) {
+            return "angle";
+        }
+        String normalized = mode.toLowerCase();
+        return "rate".equals(normalized) ? "rate" : "angle";
+    }
+
+    private static SampleProvider selectProvider(EV3GyroSensor sensor, String normalizedMode) {
+        if ("rate".equals(normalizedMode)) {
+            return sensor.getRateMode();
+        }
+        return sensor.getAngleMode();
+    }
+
+    @Override
+    protected String formatSample(float[] sample) {
+        return "gyro=" + String.format("%.1f", sample[0]);
+    }
+
+    public void reset() {
+        if (isOperational()) {
+            try {
+                sensor().reset();
+            } catch (Exception e) {
+                // Ignore reset issues
+            }
         }
     }
 }
