@@ -1,8 +1,10 @@
 package client.autonomous;
 
 import client.config.RobotConfig;
+import client.motor.DifferentialDrive;
 import client.motor.MotorFactory;
 import client.sensor.ISensor;
+import client.sensor.impl.LightSensor;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
 import java.io.BufferedWriter;
@@ -16,12 +18,26 @@ public class BallDetector {
     private ISensor gyroSensor;
     private ISensor colorSensor;
     
-    private BaseRegulatedMotor leftMotor;
-    private BaseRegulatedMotor rightMotor;
+    private final DifferentialDrive drive;
+    private final BaseRegulatedMotor leftMotor;
+    private final BaseRegulatedMotor rightMotor;
     private BaseRegulatedMotor armMotor;
     
     private BufferedWriter out;
     private boolean running = false;
+    private int confirmApproachSteps = 0;
+    
+    private enum Phase {
+        SCOUTING,
+        APPROACHING,
+        CONFIRMING
+    }
+    
+    private enum ConfirmationResult {
+        FOUND,
+        NEED_APPROACH,
+        REJECTED
+    }
     
     public BallDetector(ISensor ultrasonicSensor, ISensor gyroSensor, ISensor colorSensor, BufferedWriter out) {
         this(ultrasonicSensor, null, gyroSensor, colorSensor, out);
@@ -34,11 +50,9 @@ public class BallDetector {
         this.colorSensor = colorSensor;
         this.out = out;
         
-        char[] driveMotors = RobotConfig.DRIVE_MOTORS;
-        if (driveMotors != null && driveMotors.length >= 2) {
-            this.leftMotor = MotorFactory.getMotor(driveMotors[0]);
-            this.rightMotor = MotorFactory.getMotor(driveMotors[1]);
-        }
+        this.drive = new DifferentialDrive();
+        this.leftMotor = drive.getLeftMotor();
+        this.rightMotor = drive.getRightMotor();
         
         this.armMotor = MotorFactory.getMotor(RobotConfig.ARM_MOTOR_PORT);
         if (this.armMotor != null) {
@@ -59,92 +73,126 @@ public class BallDetector {
         raiseArm();
         
         try {
+            Phase phase = Phase.SCOUTING;
+            float remainingDistance = 0f;
+            float distanceSinceSweep = 0f;
             while (running) {
-                SweepResult sweep = sweepForObject();
-                
-                if (!sweep.found) {
-                    log("SCAN: No object found");
-                    return false;
-                }
-                
-                log("Object at " + sweep.angle + "deg, " + (int)sweep.distance + "cm");
-                
-                if (sweep.distance < 15) {
-                    log("Close enough - checking color");
-                    break;
-                }
-                
-                if (Math.abs(sweep.angle) > 3) {
-                    log("Turning " + sweep.angle + "deg");
-                    turnDegrees(sweep.angle);
-                }
-                
-                if (!running) break;
-                
-                float moveDistance = Math.min(sweep.distance - 15, 20);
-                
-                if (moveDistance < 5) {
-                    log("Very close - stopping");
-                    break;
-                }
-                
-                log("Moving forward " + (int)moveDistance + "cm");
-                moveForwardCm((int)moveDistance);
-                
-                try { Thread.sleep(200); } catch (InterruptedException e) {}
-                float currentDist = readDistance();
-                
-                if (infraredSensor != null && infraredSensor.isAvailable()) {
-                    String irValue = infraredSensor.readValue();
-                    if (irValue != null && irValue.contains("=")) {
-                        try {
-                            float irDist = Float.parseFloat(irValue.split("=")[1].trim());
-                            if (irDist > 0 && irDist < currentDist) {
-                                currentDist = irDist;
-                            }
-                        } catch (Exception e) {}
+                if (phase == Phase.SCOUTING) {
+                    SweepResult sweep = sweepForObject();
+                    
+                    if (!sweep.found) {
+                        log("SCAN: No object found");
+                        return false;
                     }
+                    
+                    log("Target candidate " + sweep.angle + "deg, " + (int)sweep.distance + "cm");
+                    
+                    confirmApproachSteps = 0;
+                    
+                    if (Math.abs(sweep.angle) > 2) {
+                        log("Turning " + sweep.angle + "deg");
+                        if (!rotateSafe(sweep.angle, 40)) {
+                            return false;
+                        }
+                    }
+                    
+                    fineAlignHeading();
+                    
+                    remainingDistance = sweep.distance;
+                    distanceSinceSweep = 0f;
+                    
+                    if (remainingDistance <= RobotConfig.IR_CONFIRM_DISTANCE_CM) {
+                        phase = Phase.CONFIRMING;
+                    } else {
+                        phase = Phase.APPROACHING;
+                    }
+                    continue;
                 }
                 
-                log("After move, distance: " + (int)currentDist + "cm");
+                if (phase == Phase.APPROACHING) {
+                    float gap = Math.max(0f, remainingDistance - RobotConfig.IR_CONFIRM_DISTANCE_CM);
+                    float dynamicStep = gap * 0.6f;
+                    float moveChunk = Math.min(RobotConfig.RESWEEP_DISTANCE_CM,
+                        Math.max(4f, dynamicStep));
+                    
+                    if (moveChunk <= 3) {
+                        phase = Phase.CONFIRMING;
+                        continue;
+                    }
+                    
+                    log("Advancing " + (int)moveChunk + "cm toward target");
+                    
+                    int steps = Math.max(1, (int) Math.ceil(moveChunk / RobotConfig.SENSOR_POLL_INTERVAL_CM));
+                    float stepSize = moveChunk / steps;
+                    for (int step = 0; step < steps && running; step++) {
+                        if (!moveForwardSafe((int) stepSize, 80)) {
+                            return false;
+                        }
+                        DistanceSample midSample = readDistanceSample();
+                        logDistanceSample("Step " + (step + 1) + "/" + steps, midSample);
+                        if (midSample.shortRange > 0 && midSample.shortRange <= RobotConfig.IR_APPROACH_DISTANCE_CM) {
+                            log("IR indicates close contact");
+                            phase = Phase.CONFIRMING;
+                            break;
+                        }
+                    }
+                    if (phase == Phase.CONFIRMING) {
+                        continue;
+                    }
+                    
+                    distanceSinceSweep += moveChunk;
+                    remainingDistance = Math.max(remainingDistance - moveChunk, 0f);
+                    
+                    DistanceSample current = readDistanceSample();
+                    logDistanceSample("After move", current);
+                    
+                    if (current.shortRange > 0 && current.shortRange <= RobotConfig.IR_APPROACH_DISTANCE_CM) {
+                        log("IR indicates close contact");
+                        phase = Phase.CONFIRMING;
+                        continue;
+                    }
+                    
+                    if (isWallDelta(current)) {
+                        log("Wall delta detected, nudging heading");
+                        rotateSafe(5, 40);
+                    }
+                    
+                    if (remainingDistance <= RobotConfig.IR_CONFIRM_DISTANCE_CM) {
+                        phase = Phase.CONFIRMING;
+                        continue;
+                    }
+                    
+                    if (distanceSinceSweep >= RobotConfig.RESWEEP_DISTANCE_CM) {
+                        log("Re-sweeping to refine target");
+                        confirmApproachSteps = 0;
+                        phase = Phase.SCOUTING;
+                    }
+                    continue;
+                }
                 
-                if (currentDist > 0 && currentDist < 15) {
-                    log("Close enough now - stopping");
-                    break;
+                if (phase == Phase.CONFIRMING) {
+                    ConfirmationResult confirmation = confirmTarget();
+                    if (confirmation == ConfirmationResult.FOUND) {
+                        confirmApproachSteps = 0;
+                        return true;
+                    } else if (confirmation == ConfirmationResult.REJECTED) {
+                        confirmApproachSteps = 0;
+                        phase = Phase.SCOUTING;
+                    } else {
+                        phase = Phase.APPROACHING;
+                    }
+                    continue;
                 }
             }
             
-            if (!running) {
-                log("SCAN: Stopped");
-                return false;
-            }
-            
-            log("Aligning color sensor...");
-            turnDegrees(-7);
-            try { Thread.sleep(300); } catch (InterruptedException e) {}
-            
-            if (colorSensor != null && colorSensor.isAvailable()) {
-                boolean correctColor = verifyBallColor();
-                turnDegrees(7);
-                
-                if (correctColor) {
-                    log("SCAN: Ball found!");
-                    return true;
-                } else {
-                    log("SCAN: Wrong color");
-                    return false;
-                }
-            } else {
-                log("SCAN: Object found (no color check)");
-                return true;
-            }
-            
+            log("SCAN: Stopped");
+            return false;
         } catch (Exception e) {
             log("SCAN: Error - " + e.getMessage());
             return false;
         } finally {
             running = false;
-            stopMotors();
+            drive.stop();
             lowerArm();
         }
     }
@@ -153,6 +201,13 @@ public class BallDetector {
         boolean found = false;
         int angle = 0;
         float distance = 999;
+        float colorScore = 0f;
+        float score = 0f;
+    }
+    
+    private static class DistanceSample {
+        float longRange = -1f;
+        float shortRange = -1f;
     }
     
     // Sweep 120 degrees using tacho counts, find closest object
@@ -161,13 +216,14 @@ public class BallDetector {
         
         log("Sweeping...");
         
-        turnDegrees(-60);
+        if (!rotateSafe(-60, 40)) {
+            return result;
+        }
         try { Thread.sleep(200); } catch (InterruptedException e) {}
         
         if (!running) return result;
         
-        int bestAngle = -60;
-        float minDist = 999;
+        float previousDist = -1f;
         
         if (leftMotor == null || rightMotor == null) return result;
         
@@ -187,13 +243,35 @@ public class BallDetector {
         
         int currentAngle = -60;
         for (int i = 0; i < 40 && running; i++) {
-            float dist = readDistance();
+            DistanceSample sample = readDistanceSample();
+            if (sample.longRange > 0 || sample.shortRange > 0) {
+                logDistanceSample("Sweep @" + currentAngle, sample);
+            }
+            float dist = pickSweepDistance(sample);
             
-            // Prefer closer readings (more likely to be the ball)
-            if (dist > 0 && dist < minDist && dist < 200) {
-                minDist = dist;
-                bestAngle = currentAngle;
-                log("  " + currentAngle + "deg: " + (int)dist + "cm");
+            if (dist > 0 && dist < RobotConfig.OBSTACLE_DISTANCE_CM * 2) {
+                float filtered = (previousDist > 0) ? (previousDist + dist) / 2f : dist;
+                previousDist = filtered;
+                
+                float distanceScore = RobotConfig.BALL_SCORE_DISTANCE_WEIGHT / Math.max(filtered, 1f);
+                
+                if (!result.found || distanceScore >= result.score) {
+                    float colorScore = 0f;
+                    if (filtered <= RobotConfig.BALL_COLOR_MAX_DISTANCE_CM) {
+                        colorScore = measureColorScore();
+                    }
+                    
+                    float totalScore = distanceScore + RobotConfig.BALL_SCORE_COLOR_WEIGHT * colorScore;
+                    
+                    if (!result.found || totalScore > result.score) {
+                        result.found = true;
+                        result.angle = currentAngle;
+                        result.distance = filtered;
+                        result.colorScore = colorScore;
+                        result.score = totalScore;
+                        log(String.format("  %ddeg: %dcm score=%.2f color=%.2f", currentAngle, (int) filtered, totalScore, colorScore));
+                    }
+                }
             }
             
             while (running && Math.abs(leftMotor.getTachoCount()) < (i + 1) * degreesPerSample) {
@@ -203,14 +281,11 @@ public class BallDetector {
             currentAngle += 3;
         }
         
-        stopMotors();
-        turnDegrees(-60);
+        drive.stop();
+        rotateSafe(-60, 40);
         
-        if (minDist < 200) {
-            result.found = true;
-            result.angle = bestAngle;
-            result.distance = minDist;
-            log("Found at " + bestAngle + "deg, " + (int)minDist + "cm");
+        if (result.found) {
+            log("Found at " + result.angle + "deg, " + (int)result.distance + "cm (score " + String.format("%.2f", result.score) + ")");
         } else {
             log("No object found in sweep");
         }
@@ -218,39 +293,149 @@ public class BallDetector {
         return result;
     }
     
-    // Turn using tacho counts (negative = left, positive = right)
-    private void turnDegrees(int degrees) {
-        if (Math.abs(degrees) < 2) return;
-        if (leftMotor == null || rightMotor == null) return;
+    private ConfirmationResult confirmTarget() {
+        log("Confirming target...");
+        DistanceSample sample = readDistanceSample();
+        logDistanceSample("Confirm sample", sample);
         
-        float trackCircumference = (float) (Math.PI * RobotConfig.TRACK_WIDTH_MM);
-        float arcLength = trackCircumference * Math.abs(degrees) / 360.0f;
-        float wheelCircumference = (float) (Math.PI * RobotConfig.WHEEL_DIAMETER_MM);
-        int motorDegrees = (int) (arcLength / wheelCircumference * 360);
-        
-        leftMotor.setSpeed(40);
-        rightMotor.setSpeed(40);
-        
-        if (degrees < 0) {
-            leftMotor.rotate(-motorDegrees, true);
-            rightMotor.rotate(motorDegrees, false);
-        } else {
-            leftMotor.rotate(motorDegrees, true);
-            rightMotor.rotate(-motorDegrees, false);
+        if (sample.shortRange <= 0) {
+            if (sample.longRange > 0 && sample.longRange <= RobotConfig.IR_COLOR_CONTACT_DISTANCE_CM) {
+                sample.shortRange = sample.longRange;
+            } else {
+                log("IR still not seeing target, keep approaching");
+                if (!advanceForConfirmation(4)) {
+                    return ConfirmationResult.REJECTED;
+                }
+                return ConfirmationResult.NEED_APPROACH;
+            }
         }
+        
+        if (sample.shortRange <= RobotConfig.IR_STOP_DISTANCE_CM) {
+            drive.stop();
+            log("SCAN: Ball reached (IR " + sample.shortRange + "cm)");
+            return ConfirmationResult.FOUND;
+        }
+        
+        if (sample.shortRange > RobotConfig.IR_COLOR_CONTACT_DISTANCE_CM) {
+            int advance = Math.max(2, Math.min(6, (int)(sample.shortRange - RobotConfig.IR_COLOR_CONTACT_DISTANCE_CM)));
+            log("Closing gap (" + sample.shortRange + "cm -> +" + advance + "cm)");
+            if (!advanceForConfirmation(advance)) {
+                return ConfirmationResult.REJECTED;
+            }
+            return ConfirmationResult.NEED_APPROACH;
+        }
+        
+        drive.stop();
+        log("SCAN: Ball proximity reached (" + sample.shortRange + "cm)");
+        return ConfirmationResult.FOUND;
     }
     
-    // Move forward using tacho counts
-    private void moveForwardCm(int cm) {
-        if (cm < 1 || leftMotor == null || rightMotor == null) return;
+    private boolean advanceForConfirmation(int cm) {
+        if (++confirmApproachSteps > RobotConfig.MAX_CONFIRM_APPROACH_STEPS) {
+            log("Too many blind approach steps, aborting target");
+            confirmApproachSteps = 0;
+            return false;
+        }
+        return moveForwardSafe(cm, 60);
+    }
+    
+    private float measureColorScore() {
+        if (!(colorSensor instanceof LightSensor)) {
+            return 0f;
+        }
+        LightSensor ls = (LightSensor) colorSensor;
+        if (!ls.isAvailable()) {
+            return 0f;
+        }
         
-        float wheelCircumference = (float) (Math.PI * RobotConfig.WHEEL_DIAMETER_MM);
-        int motorDegrees = (int) (cm * 10 / wheelCircumference * 360);
+        int samples = Math.max(1, RobotConfig.BALL_COLOR_SAMPLES);
+        float totalRatio = 0f;
+        int collected = 0;
         
-        leftMotor.setSpeed(80);
-        rightMotor.setSpeed(80);
-        leftMotor.rotate(motorDegrees, true);
-        rightMotor.rotate(motorDegrees, false);
+        for (int i = 0; i < samples; i++) {
+            float[] rgb = ls.readRgbSample();
+            if (rgb == null || rgb.length < 3) {
+                continue;
+            }
+            float total = rgb[0] + rgb[1] + rgb[2];
+            if (total <= 0) {
+                continue;
+            }
+            totalRatio += rgb[0] / total;
+            collected++;
+            
+            try {
+                Thread.sleep((long) RobotConfig.BALL_COLOR_SAMPLE_DELAY_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            
+            if (!running) {
+                break;
+            }
+        }
+        
+        if (collected == 0 || !running) {
+            return 0f;
+        }
+        
+        float average = totalRatio / collected;
+        return average >= RobotConfig.BALL_COLOR_RATIO_THRESHOLD ? average : 0f;
+    }
+
+    private boolean rotateSafe(int degrees, int speed) {
+        if (!running || degrees == 0) {
+            return running;
+        }
+        drive.rotateDegrees(degrees, speed);
+        return running;
+    }
+
+    private boolean moveForwardSafe(int cm, int speed) {
+        if (!running || cm <= 0) {
+            return running;
+        }
+        drive.moveForwardCm(cm, speed);
+        return running;
+    }
+
+    private void fineAlignHeading() {
+        if (!running) return;
+        
+        int[] offsets = {-6, -3, 0, 3, 6};
+        int applied = 0;
+        float bestScore = Float.NEGATIVE_INFINITY;
+        int bestOffset = 0;
+        
+        for (int offset : offsets) {
+            if (!running) break;
+            int delta = offset - applied;
+            if (delta != 0 && !rotateSafe(delta, 30)) {
+                return;
+            }
+            applied = offset;
+            DistanceSample sample = readDistanceSample();
+            float score = headingScore(sample);
+            if (score > bestScore) {
+                bestScore = score;
+                bestOffset = offset;
+            }
+        }
+        
+        int correction = bestOffset - applied;
+        if (correction != 0) {
+            rotateSafe(correction, 30);
+        }
+        log("Fine alignment offset " + bestOffset + "deg (score " + String.format("%.2f", bestScore) + ")");
+    }
+    
+    private float headingScore(DistanceSample sample) {
+        float distance = pickSweepDistance(sample);
+        if (distance <= 0) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        return -distance;
     }
     
     // Verify color with voting - accepts if majority match
@@ -259,10 +444,34 @@ public class BallDetector {
             return false;
         }
         
+        if (colorSensor instanceof LightSensor) {
+            LightSensor ls = (LightSensor) colorSensor;
+            int matchCount = 0;
+            int samples = 0;
+            for (int i = 0; i < RobotConfig.COLOR_VERIFY_ATTEMPTS && running; i++) {
+                float[] rgb = ls.readRgbSample();
+                if (rgb != null && rgb.length >= 3) {
+                    float total = rgb[0] + rgb[1] + rgb[2];
+                    if (total > 0) {
+                        float ratio = rgb[0] / total;
+                        samples++;
+                        if (ratio >= RobotConfig.BALL_COLOR_RATIO_THRESHOLD) {
+                            matchCount++;
+                        }
+                        log(String.format("Color sample %d: ratio=%.2f", i, ratio));
+                    }
+                }
+                try { Thread.sleep(80); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }
+            boolean verified = samples > 0 && matchCount > 0;
+            log("Color verify RGB: " + matchCount + "/" + samples + " = " + verified);
+            return verified;
+        }
+        
         int matchCount = 0;
         int totalSamples = 0;
         
-        for (int i = 0; i < RobotConfig.COLOR_VERIFY_ATTEMPTS; i++) {
+        for (int i = 0; i < RobotConfig.COLOR_VERIFY_ATTEMPTS && running; i++) {
             String colorValue = colorSensor.readValue();
             if (colorValue != null && colorValue.contains("=")) {
                 try {
@@ -285,7 +494,7 @@ public class BallDetector {
                     }
                 } catch (NumberFormatException e) {}
             }
-            try { Thread.sleep(100); } catch (InterruptedException e) {}
+            try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
         
         boolean verified = totalSamples > 0 && (matchCount * 100 / totalSamples) >= RobotConfig.COLOR_MATCH_THRESHOLD_PERCENT;
@@ -294,13 +503,9 @@ public class BallDetector {
     }
     
     private boolean isSystemReady() {
-        if (ultrasonicSensor == null || !ultrasonicSensor.isAvailable()) {
-            return false;
-        }
-        if (leftMotor == null || rightMotor == null) {
-            return false;
-        }
-        return true;
+        boolean hasUltrasonic = ultrasonicSensor != null && ultrasonicSensor.isAvailable();
+        boolean hasInfrared = infraredSensor != null && infraredSensor.isAvailable();
+        return (hasUltrasonic || hasInfrared) && drive.isReady();
     }
     
     private void testSensors() {
@@ -335,57 +540,74 @@ public class BallDetector {
         log("Sensor test complete");
     }
     
-    // Read distance from ultrasonic/infrared, prefer IR at close range
-    private float readDistance() {
-        float ultrasonicDist = -1;
-        float infraredDist = -1;
-        
-        if (ultrasonicSensor != null) {
-            try {
-                String value = ultrasonicSensor.readValue();
-                if (value != null && value.contains("=")) {
-                    ultrasonicDist = Float.parseFloat(value.split("=")[1]);
+    private DistanceSample readDistanceSample() {
+        DistanceSample sample = new DistanceSample();
+        sample.longRange = readSensorDistance(ultrasonicSensor);
+        sample.shortRange = readSensorDistance(infraredSensor);
+        return sample;
+    }
+    
+    private float readSensorDistance(ISensor sensor) {
+        if (sensor == null || !sensor.isAvailable()) {
+            return -1;
+        }
+        try {
+            String value = sensor.readValue();
+            if (value != null && value.contains("=")) {
+                String number = value.substring(value.indexOf('=') + 1).trim();
+                if (number.contains(",")) {
+                    number = number.split(",")[0];
                 }
-            } catch (Exception e) {}
+                return Float.parseFloat(number);
+            }
+        } catch (Exception e) {
         }
-        
-        if (infraredSensor != null) {
-            try {
-                String value = infraredSensor.readValue();
-                if (value != null && value.contains("=")) {
-                    infraredDist = Float.parseFloat(value.split("=")[1]);
-                }
-            } catch (Exception e) {}
-        }
-        
-        if (infraredDist > 0 && infraredDist < 20.0f) {
-            return infraredDist;
-        } else if (ultrasonicDist > 0) {
-            return ultrasonicDist;
-        } else if (infraredDist > 0) {
-            return infraredDist;
-        }
-        
         return -1;
     }
     
-    private void stopMotors() {
-        if (leftMotor != null) {
-            try {
-                leftMotor.stop(true);
-            } catch (Exception e) {}
+    private float pickSweepDistance(DistanceSample sample) {
+        float combined = chooseDistance(sample);
+        if (sample.shortRange > 0 && sample.longRange > 0) {
+            float delta = sample.longRange - sample.shortRange;
+            if (delta >= RobotConfig.BALL_NEAR_WALL_DELTA_CM) {
+                combined = sample.shortRange;
+            }
         }
-        if (rightMotor != null) {
-            try {
-                rightMotor.stop(true);
-            } catch (Exception e) {}
+        return combined;
+    }
+    
+    private boolean isWallDelta(DistanceSample sample) {
+        return sample.shortRange > 0 && sample.longRange > 0 &&
+               (sample.longRange - sample.shortRange) >= RobotConfig.BALL_NEAR_WALL_DELTA_CM;
+    }
+    
+    private void logDistanceSample(String prefix, DistanceSample sample) {
+        log(String.format("%s: US=%.1fcm IR=%.1fcm", prefix,
+            sample.longRange, sample.shortRange));
+    }
+    
+    // Read distance from ultrasonic/infrared, prefer IR at close range
+    private float readDistance() {
+        return chooseDistance(readDistanceSample());
+    }
+    
+    private float chooseDistance(DistanceSample sample) {
+        if (sample.shortRange > 0 && sample.shortRange < 20.0f) {
+            return sample.shortRange;
         }
+        if (sample.longRange > 0) {
+            return sample.longRange;
+        }
+        if (sample.shortRange > 0) {
+            return sample.shortRange;
+        }
+        return -1;
     }
     
     public void stop() {
         log("*** EMERGENCY STOP ***");
         running = false;
-        stopMotors();
+        drive.stop();
     }
     
     private void raiseArm() {

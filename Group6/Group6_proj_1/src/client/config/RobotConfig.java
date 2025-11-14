@@ -29,8 +29,6 @@ public class RobotConfig {
     public static final char LEFT_MOTOR_PORT = 'B';
     public static final char RIGHT_MOTOR_PORT = 'C';
     public static final char[] DRIVE_MOTORS = {LEFT_MOTOR_PORT, RIGHT_MOTOR_PORT};
-    public static final char[] LEFT_MOTORS = {LEFT_MOTOR_PORT};
-    public static final char[] RIGHT_MOTORS = {RIGHT_MOTOR_PORT};
     
     // Robot dimensions (mm)
     public static final float WHEEL_DIAMETER_MM = 43.2f;
@@ -57,6 +55,20 @@ public class RobotConfig {
     public static final int COLOR_VERIFY_ATTEMPTS = 5;
     public static final float SMALL_OBJECT_THRESHOLD_CM = 15.0f;
     public static final int COLOR_MATCH_THRESHOLD_PERCENT = 40;
+    public static final float BALL_SCORE_DISTANCE_WEIGHT = 1.0f;
+    public static final float BALL_SCORE_COLOR_WEIGHT = 1.5f;
+    public static final float BALL_COLOR_RATIO_THRESHOLD = 0.55f;
+    public static final int BALL_COLOR_SAMPLES = 4;
+    public static final float BALL_COLOR_SAMPLE_DELAY_MS = 40f;
+    public static final float BALL_COLOR_MAX_DISTANCE_CM = 80f;
+    public static final float IR_APPROACH_DISTANCE_CM = 25f;
+    public static final float IR_CONFIRM_DISTANCE_CM = 15f;
+    public static final float BALL_NEAR_WALL_DELTA_CM = 15f;
+    public static final float RESWEEP_DISTANCE_CM = 15f;
+    public static final float IR_COLOR_CONTACT_DISTANCE_CM = 8f;
+    public static final float IR_STOP_DISTANCE_CM = 2f;
+    public static final float SENSOR_POLL_INTERVAL_CM = 3f;
+    public static final int MAX_CONFIRM_APPROACH_STEPS = 4;
     
     // Autonomous search
     public static final int SEARCH_MOTOR_SPEED = 100;
