@@ -4,20 +4,7 @@ import client.config.RobotConfig;
 import common.ParsedCommand;
 import java.io.IOException;
 
-/**
- * NAVSQUARE command - Navigate in a square pattern using DifferentialDrive.
- * Based on TestNavigator.java from course materials.
- * 
- * Syntax: NAVSQUARE [size] [speed]
- * - size: side length in cm (default 20)
- * - speed: optional motor speed (default: RobotConfig.COMMAND_DEFAULT_SPEED)
- * - Moves forward, rotates 90°, repeats 4 times to form square
- * 
- * Examples:
- *   NAVSQUARE             - 20cm square at default speed
- *   NAVSQUARE 30          - 30cm square at default speed
- *   NAVSQUARE 25 200      - 25cm square at speed 200
- */
+// Navigate in a square pattern. Syntax: NAVSQUARE [size] [speed]
 public class NavSquareCommand implements ICommand {
 
     private final ParsedCommand parsedCmd;

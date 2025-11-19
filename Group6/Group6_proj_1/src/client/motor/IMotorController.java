@@ -9,7 +9,6 @@ public interface IMotorController {
     
     /**
      * Check if motor controller is ready and operational.
-     * @return true if motors are available and ready
      */
     boolean isReady();
     
@@ -20,13 +19,11 @@ public interface IMotorController {
     
     /**
      * Check if any motors are currently moving.
-     * @return true if at least one motor is moving
      */
     boolean isMoving();
     
     /**
      * Get human-readable name for this controller.
-     * @return Controller name (e.g., "Drive", "Arm")
      */
     String getName();
 }

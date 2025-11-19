@@ -3,11 +3,7 @@ package client.motor;
 import client.config.RobotConfig;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
-/**
- * Differential drive implementation for two-wheeled robots.
- * Centralizes conversions between robot angles/distances and motor tacho counts.
- * Implements IDriveController for standardized drive control.
- */
+// Two-wheeled differential drive with angle/distance to tacho conversions
 public class DifferentialDrive implements IDriveController {
 
     private final BaseRegulatedMotor leftMotor;

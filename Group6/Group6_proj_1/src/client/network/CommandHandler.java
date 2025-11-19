@@ -23,26 +23,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Handles commands from server and executes them on robot.
- * 
- * Uses Command Pattern to decouple command parsing from execution.
- * Commands are created by CommandFactory and executed through CommandContext.
- */
+// Handles commands from server and executes them on robot
 public class CommandHandler implements Runnable {
     
     private final BufferedReader in;
     private final CommandContext context;
     
-    /**
-     * Constructor with warehouse for shared sensor data access.
-     * 
-     * @param in network input stream
-     * @param out network output stream
-     * @param running shared running flag
-     * @param sensors direct sensor references (legacy)
-     * @param warehouse centralized sensor data store
-     */
     public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, 
                           List<ISensor> sensors, SensorDataWarehouse warehouse) {
         this.in = in;
@@ -51,20 +37,6 @@ public class CommandHandler implements Runnable {
         IDriveController drive = new DifferentialDrive();
         IArmController armController = new ArmController(RobotConfig.ARM_MOTOR_PORT);
         this.context = new CommandContext(drive, armController, sensors, out, running, warehouse);
-    }
-    
-    /**
-     * Legacy constructor without warehouse.
-     * @deprecated Use constructor with warehouse parameter.
-     */
-    @Deprecated
-    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running, List<ISensor> sensors) {
-        this(in, out, running, sensors, null);
-    }
-    
-    @Deprecated
-    public CommandHandler(BufferedReader in, BufferedWriter out, AtomicBoolean running) {
-        this(in, out, running, null, null);
     }
     
     @Override
@@ -110,10 +82,6 @@ public class CommandHandler implements Runnable {
         }
     }
     
-    /**
-     * Executes a command using the Command Pattern.
-     * Creates a command instance via CommandFactory and executes it.
-     */
     private void executeCommand(ParsedCommand cmd) throws IOException {
         ICommand command = CommandFactory.createCommand(cmd);
         
@@ -125,10 +93,6 @@ public class CommandHandler implements Runnable {
         }
     }
     
-    /**
-     * Public accessor for autonomous controllers.
-     * Used by server to check autonomous search status.
-     */
     public BallSearchController getBallSearchController() {
         return context.getBallSearchController();
     }

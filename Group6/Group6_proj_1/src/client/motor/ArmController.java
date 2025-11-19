@@ -16,7 +16,6 @@ public class ArmController implements IArmController {
     
     /**
      * Create arm controller with default positions from RobotConfig.
-     * @param motorPort Motor port character ('A', 'B', 'C', 'D')
      */
     public ArmController(char motorPort) {
         this(motorPort, RobotConfig.ARM_UP_POSITION, RobotConfig.ARM_DOWN_POSITION, RobotConfig.ARM_SPEED);
@@ -24,10 +23,6 @@ public class ArmController implements IArmController {
     
     /**
      * Create arm controller with custom positions.
-     * @param motorPort Motor port character
-     * @param upPosition Up position in degrees
-     * @param downPosition Down position in degrees
-     * @param defaultSpeed Default movement speed
      */
     public ArmController(char motorPort, int upPosition, int downPosition, int defaultSpeed) {
         this.armMotor = MotorFactory.getMotor(motorPort);
@@ -42,10 +37,6 @@ public class ArmController implements IArmController {
     
     /**
      * Create arm controller with existing motor instance.
-     * @param armMotor The motor instance
-     * @param upPosition Up position in degrees
-     * @param downPosition Down position in degrees
-     * @param defaultSpeed Default movement speed
      */
     public ArmController(BaseRegulatedMotor armMotor, int upPosition, int downPosition, int defaultSpeed) {
         this.armMotor = armMotor;
@@ -134,7 +125,6 @@ public class ArmController implements IArmController {
     
     /**
      * Get the motor instance (for legacy code compatibility).
-     * @return The underlying motor or null
      */
     public BaseRegulatedMotor getMotor() {
         return armMotor;
@@ -142,7 +132,6 @@ public class ArmController implements IArmController {
     
     /**
      * Get configured up position.
-     * @return Up position in degrees
      */
     public int getUpPosition() {
         return upPosition;
@@ -150,7 +139,6 @@ public class ArmController implements IArmController {
     
     /**
      * Get configured down position.
-     * @return Down position in degrees
      */
     public int getDownPosition() {
         return downPosition;

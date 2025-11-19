@@ -37,8 +37,6 @@ public class ParsedCommand {
     
     /**
      * Get specific argument by index.
-     * @param index Argument index (0-based)
-     * @return Argument value or null if index out of bounds
      */
     public String getArg(int index) {
         return index >= 0 && index < args.length ? args[index] : null;
@@ -46,9 +44,6 @@ public class ParsedCommand {
     
     /**
      * Get argument as integer.
-     * @param index Argument index (0-based)
-     * @param defaultValue Value to return if parsing fails
-     * @return Parsed integer or defaultValue
      */
     public int getArgAsInt(int index, int defaultValue) {
         String arg = getArg(index);
@@ -64,9 +59,6 @@ public class ParsedCommand {
     
     /**
      * Get argument as float.
-     * @param index Argument index (0-based)
-     * @param defaultValue Value to return if parsing fails
-     * @return Parsed float or defaultValue
      */
     public float getArgAsFloat(int index, float defaultValue) {
         String arg = getArg(index);
@@ -82,8 +74,6 @@ public class ParsedCommand {
     
     /**
      * Check if argument is a single character (for motor ports).
-     * @param index Argument index (0-based)
-     * @return true if argument is single letter
      */
     public boolean isArgChar(int index) {
         String arg = getArg(index);
@@ -92,8 +82,6 @@ public class ParsedCommand {
     
     /**
      * Get argument as character (for motor ports).
-     * @param index Argument index (0-based)
-     * @return Character or '\0' if invalid
      */
     public char getArgAsChar(int index) {
         String arg = getArg(index);
@@ -102,8 +90,6 @@ public class ParsedCommand {
     
     /**
      * Check if command matches given name.
-     * @param commandName Command to check (case-insensitive)
-     * @return true if matches
      */
     public boolean is(String commandName) {
         return command.equalsIgnoreCase(commandName);
@@ -111,8 +97,6 @@ public class ParsedCommand {
     
     /**
      * Check if command matches any of the given names.
-     * @param commandNames Commands to check (case-insensitive)
-     * @return true if matches any
      */
     public boolean isAnyOf(String... commandNames) {
         for (String name : commandNames) {

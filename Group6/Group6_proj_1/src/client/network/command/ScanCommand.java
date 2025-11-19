@@ -8,12 +8,7 @@ import lejos.hardware.lcd.LCD;
 
 import java.io.IOException;
 
-/**
- * Command to initiate a 360-degree ball scan and approach sequence.
- * 
- * Syntax: SCAN
- * Starts autonomous ball detection in a separate thread.
- */
+// 360-degree ball scan and approach. Syntax: SCAN
 public class ScanCommand implements ICommand {
     
     private final ParsedCommand parsedCmd;

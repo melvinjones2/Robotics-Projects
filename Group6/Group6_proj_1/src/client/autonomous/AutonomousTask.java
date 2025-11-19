@@ -5,20 +5,8 @@ import java.io.IOException;
 
 /**
  * Abstract base class for autonomous tasks that run in a separate thread.
- * 
- * This class implements the Template Method pattern to provide a consistent
- * lifecycle for autonomous operations:
- * 1. start() - Initializes and launches the task thread
- * 2. execute() - Subclass implements the main task logic (called by thread)
- * 3. stop() - Gracefully stops the task and cleans up resources
- * 
- * Common features:
- * - Thread management with running flag
- * - Lifecycle methods (onStart, onStop)
- * - Logging support
- * - Error handling
- * - Thread interruption handling
  */
+
 public abstract class AutonomousTask {
     
     private final String taskName;
@@ -29,9 +17,6 @@ public abstract class AutonomousTask {
     
     /**
      * Create an autonomous task.
-     * 
-     * @param taskName Name for the task (used in logging and thread naming)
-     * @param out Optional BufferedWriter for logging (can be null)
      */
     protected AutonomousTask(String taskName, BufferedWriter out) {
         this.taskName = taskName;
@@ -40,8 +25,6 @@ public abstract class AutonomousTask {
     
     /**
      * Start the autonomous task in a separate thread.
-     * 
-     * @return true if started successfully, false if already running
      */
     public synchronized boolean start() {
         if (running) {
@@ -140,44 +123,20 @@ public abstract class AutonomousTask {
         }
     }
     
-    /**
-     * Template method: Subclasses implement their main task logic here.
-     * This method is called once when the task starts.
-     * Should check isRunning() regularly and return when it becomes false.
-     */
     protected abstract void execute();
     
-    /**
-     * Hook method: Called before the task thread starts.
-     * Subclasses can override to perform initialization.
-     */
     protected void onStart() {
         // Default: do nothing
     }
     
-    /**
-     * Hook method: Called after the task thread stops.
-     * Subclasses can override to perform cleanup.
-     */
     protected void onStop() {
         // Default: do nothing
     }
     
-    /**
-     * Helper method for checking if task should continue running.
-     * Subclasses should call this regularly in their execute() method.
-     * 
-     * @return true if task should continue, false if it should stop
-     */
     protected boolean shouldContinue() {
         return running;
     }
     
-    /**
-     * Log a message to the output writer (if available).
-     * 
-     * @param message Message to log
-     */
     protected void log(String message) {
         if (out != null) {
             try {
@@ -191,11 +150,6 @@ public abstract class AutonomousTask {
         }
     }
     
-    /**
-     * Sleep helper with InterruptedException handling.
-     * 
-     * @param ms Milliseconds to sleep
-     */
     protected void sleep(int ms) {
         try {
             Thread.sleep(ms);

@@ -42,9 +42,6 @@ public class ServerAutonomousController {
         }
     }
     
-    /**
-     * Enable or disable server-side autonomous control.
-     */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }

@@ -12,11 +12,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Reads sensors periodically and:
- * 1. Stores data in SensorDataWarehouse (for autonomous tasks)
- * 2. Sends data to server (for monitoring)
- * 3. Displays on LCD lines 2-7 (for debugging)
- * 
- * Thread-safe: Uses warehouse for concurrent access by other threads.
  */
 public class SensorThread implements Runnable {
     
@@ -28,12 +23,6 @@ public class SensorThread implements Runnable {
     
     /**
      * Constructor with warehouse dependency injection.
-     * 
-     * @param out network output for sending data to server
-     * @param running shared flag for thread coordination
-     * @param sensors list of sensors to poll
-     * @param pollIntervalMs milliseconds between sensor reads
-     * @param warehouse centralized data store for multi-thread access
      */
     public SensorThread(BufferedWriter out, AtomicBoolean running, 
                         List<ISensor> sensors, int pollIntervalMs, 
@@ -43,16 +32,6 @@ public class SensorThread implements Runnable {
         this.sensors = sensors;
         this.pollIntervalMs = pollIntervalMs;
         this.warehouse = warehouse;
-    }
-    
-    /**
-     * Legacy constructor - creates internal warehouse.
-     * @deprecated Use constructor with warehouse parameter for shared access.
-     */
-    @Deprecated
-    public SensorThread(BufferedWriter out, AtomicBoolean running, 
-                        List<ISensor> sensors, int pollIntervalMs) {
-        this(out, running, sensors, pollIntervalMs, new SensorDataWarehouse());
     }
     
     @Override

@@ -3,19 +3,7 @@ package client.network.command;
 import common.ParsedCommand;
 import java.io.IOException;
 
-/**
- * NAVROTATE command - Perform precise rotation using DifferentialDrive.
- * Based on TurnTest.java from course materials.
- * 
- * Syntax: NAVROTATE <angle>
- * - angle: degrees to rotate (positive = counterclockwise, negative = clockwise)
- * - Reports actual rotation time
- * 
- * Examples:
- *   NAVROTATE 90          - rotate 90 degrees CCW
- *   NAVROTATE -90         - rotate 90 degrees CW
- *   NAVROTATE 180         - rotate 180 degrees
- */
+// Precise rotation. Syntax: NAVROTATE <angle>
 public class NavRotateCommand implements ICommand {
 
     private final ParsedCommand parsedCmd;

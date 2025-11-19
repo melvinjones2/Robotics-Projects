@@ -50,14 +50,6 @@ public class Server {
         LogManager.debug("[you] " + line);
     }
     
-    /**
-     * Thread-safe message sending.
-     * Use this when multiple threads might write to the same BufferedWriter.
-     * 
-     * @param out The output stream to write to
-     * @param line The message line to send (newline will be added)
-     * @throws IOException If write/flush fails
-     */
     public static void sendSafe(BufferedWriter out, String line) throws IOException {
         synchronized (out) {
             out.write(line);

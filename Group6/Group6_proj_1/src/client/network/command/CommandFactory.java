@@ -2,19 +2,8 @@ package client.network.command;
 
 import common.ParsedCommand;
 
-/**
- * Factory for creating command instances.
- * 
- * Instantiates commands based on parsed command input.
- * Each command type gets its own factory method for flexibility.
- */
 public class CommandFactory {
     
-    /**
-     * Initialize the command registry with all supported commands.
-     * 
-     * @return configured command registry
-     */
     public static CommandRegistry createRegistry() {
         CommandRegistry registry = new CommandRegistry();
         
@@ -29,17 +18,9 @@ public class CommandFactory {
         return registry;
     }
     
-    /**
-     * Create a command instance from parsed command.
-     * Some commands need the parsed command for parameters.
-     * 
-     * @param parsedCmd Parsed command
-     * @return command instance, or null if not recognized
-     */
     public static ICommand createCommand(ParsedCommand parsedCmd) {
         String cmdName = parsedCmd.getCommand().toUpperCase();
         
-        // Commands that need ParsedCommand for parameters
         switch (cmdName) {
             case "MOVE":
             case "FWD":
@@ -84,7 +65,6 @@ public class CommandFactory {
             case "BYE":
                 return new ByeCommand();
                 
-            // Navigation commands from course materials
             case "NAVSQUARE":
                 return new NavSquareCommand(parsedCmd);
                 
@@ -93,6 +73,21 @@ public class CommandFactory {
                 
             case "NAVTRAVEL":
                 return new NavTravelCommand(parsedCmd);
+                
+            case "NAVLINEMAP":
+                return new NavLineMapCommand(parsedCmd);
+                
+            case "NAVGRIDMAP":
+                return new NavGridMapCommand(parsedCmd);
+                
+            case "NAVBALL":
+                return new NavBallCommand(parsedCmd);
+                
+            case "LOADCUSTOMMAP":
+                return new LoadCustomMapCommand(parsedCmd);
+                
+            case "NAVCUSTOM":
+                return new NavCustomMapCommand(parsedCmd);
                 
             default:
                 return null;

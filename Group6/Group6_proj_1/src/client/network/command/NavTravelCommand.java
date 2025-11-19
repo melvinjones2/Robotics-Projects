@@ -4,20 +4,7 @@ import client.config.RobotConfig;
 import common.ParsedCommand;
 import java.io.IOException;
 
-/**
- * NAVTRAVEL command - Travel a precise distance using DifferentialDrive.
- * Based on course materials using wheel odometry for distance measurement.
- * 
- * Syntax: NAVTRAVEL <distance> [speed]
- * - distance: cm to travel (positive = forward, negative = backward)
- * - speed: optional motor speed (default: RobotConfig.COMMAND_DEFAULT_SPEED)
- * - Reports actual travel time
- * 
- * Examples:
- *   NAVTRAVEL 30          - travel forward 30cm
- *   NAVTRAVEL -30         - travel backward 30cm
- *   NAVTRAVEL 50 200      - travel forward 50cm at speed 200
- */
+// Travel a precise distance. Syntax: NAVTRAVEL <distance> [speed]
 public class NavTravelCommand implements ICommand {
 
     private final ParsedCommand parsedCmd;

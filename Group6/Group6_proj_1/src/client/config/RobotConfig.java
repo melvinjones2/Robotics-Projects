@@ -35,6 +35,10 @@ public class RobotConfig {
     public static final float TRACK_WIDTH_MM = 134.0f;
     public static final double ROTATION_MULTIPLIER = 2.0;
     
+    // Robot dimensions (cm) - for Navigator
+    public static final double WHEEL_DIAMETER_CM = WHEEL_DIAMETER_MM / 10.0;
+    public static final double TRACK_WIDTH_CM = TRACK_WIDTH_MM / 10.0;
+    
     // Sensors
     public static final int SENSOR_POLL_INTERVAL_MS = 500;
     public static final int SENSOR_SAMPLE_INTERVAL_MS = 30;

@@ -8,12 +8,7 @@ import lejos.hardware.lcd.LCD;
 
 import java.io.IOException;
 
-/**
- * Command to control autonomous ball search mode.
- * 
- * Syntax: AUTOSEARCH [ON|OFF|TOGGLE]
- * Mode is optional, defaults to TOGGLE.
- */
+// Control autonomous ball search. Syntax: AUTOSEARCH [ON|OFF|TOGGLE]
 public class AutoSearchCommand implements ICommand {
     
     private final ParsedCommand parsedCmd;

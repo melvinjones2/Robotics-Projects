@@ -7,19 +7,16 @@ package client.sensor;
 public interface ISensor extends AutoCloseable {
     /**
      * Get the sensor name identifier.
-     * @return sensor name (e.g., "ultrasonic", "touch", "light", "gyro")
      */
     String getName();
     
     /**
      * Read current sensor value.
-     * @return formatted sensor data string, or null if not available or sensor error
      */
     String readValue();
     
     /**
      * Check if sensor is connected and functioning.
-     * @return true if sensor is available, false if disconnected or error
      */
     boolean isAvailable();
     

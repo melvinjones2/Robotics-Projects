@@ -29,7 +29,6 @@ public class ServerGUI {
     private JLabel touchLabel;
     private JLabel colorLabel;
     
-    /** Minimum interval between commands to prevent flooding */
     private long lastCommandTime = 0;
     private static final long MIN_COMMAND_INTERVAL_MS = 200;
 
@@ -157,6 +156,26 @@ public class ServerGUI {
         courseNavPanel.add(createCommandButton("Travel 30cm", "NAVTRAVEL 30", out, frameCount));
         courseNavPanel.add(createCommandButton("Travel -30cm", "NAVTRAVEL -30", out, frameCount));
         commandsPanel.add(courseNavPanel);
+        
+        // Mapping Commands
+        JPanel mappingPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        mappingPanel.setBorder(BorderFactory.createTitledBorder("Mapping Strategies"));
+        mappingPanel.add(createCommandButton("LineMap Test", "NAVLINEMAP 10 40 70 20", out, frameCount));
+        mappingPanel.add(createCommandButton("Grid Map Scan", "NAVGRIDMAP 50 30", out, frameCount));
+        mappingPanel.add(createCommandButton("Grid Map 100cm", "NAVGRIDMAP 100 15", out, frameCount));
+        mappingPanel.add(createCommandButton("NavBall Strategy", "NAVBALL 5", out, frameCount));
+        commandsPanel.add(mappingPanel);
+        
+        // Custom Map Navigation
+        JPanel customMapPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        customMapPanel.setBorder(BorderFactory.createTitledBorder("Custom Board Navigation"));
+        customMapPanel.add(createCommandButton("Load Custom Map", "LOADCUSTOMMAP", out, frameCount));
+        customMapPanel.add(createCommandButton("Goal 1 → Goal 2", "NAVCUSTOM 38.1 67.3 0 71.1 83.8", out, frameCount));
+        customMapPanel.add(createCommandButton("Goal 2 → Goal 1", "NAVCUSTOM 71.1 83.8 180 38.1 67.3", out, frameCount));
+        JButton customNavButton = createCommandButton("Custom Nav...", "NAVCUSTOM", out, frameCount);
+        customNavButton.setBackground(new Color(200, 200, 255));
+        customMapPanel.add(customNavButton);
+        commandsPanel.add(customMapPanel);
         
         JPanel sensorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         sensorPanel.setBorder(BorderFactory.createTitledBorder("Sensors & Battery"));

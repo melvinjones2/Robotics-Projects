@@ -21,8 +21,6 @@ public class SensorData {
     
     /**
      * Add or update a sensor reading.
-     * @param sensorName Sensor name (e.g., "ultrasonic", "infrared")
-     * @param value Sensor value
      */
     public void put(String sensorName, float value) {
         readings.put(sensorName, value);
@@ -30,8 +28,6 @@ public class SensorData {
     
     /**
      * Get sensor value by name.
-     * @param sensorName Sensor name
-     * @return Sensor value or null if not found
      */
     public Float get(String sensorName) {
         return readings.get(sensorName);
@@ -39,9 +35,6 @@ public class SensorData {
     
     /**
      * Get sensor value with default.
-     * @param sensorName Sensor name
-     * @param defaultValue Value to return if sensor not found
-     * @return Sensor value or defaultValue
      */
     public float get(String sensorName, float defaultValue) {
         Float value = readings.get(sensorName);
@@ -50,8 +43,6 @@ public class SensorData {
     
     /**
      * Check if sensor reading exists.
-     * @param sensorName Sensor name
-     * @return true if sensor data exists
      */
     public boolean has(String sensorName) {
         return readings.containsKey(sensorName);

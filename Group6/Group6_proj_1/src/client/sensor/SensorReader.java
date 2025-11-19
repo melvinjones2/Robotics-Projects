@@ -9,9 +9,6 @@ public class SensorReader {
     /**
      * Read distance value from a sensor in centimeters.
      * Handles parsing of "sensorName=value[,...]" format commonly used by distance sensors.
-     * 
-     * @param sensor The sensor to read from
-     * @return Distance in cm, or -1 if unavailable/error
      */
     public static float readDistance(ISensor sensor) {
         if (sensor == null || !sensor.isAvailable()) {
@@ -41,9 +38,6 @@ public class SensorReader {
      * Read a generic float value from a sensor.
      * Handles parsing of "sensorName=value" format.
      * Unlike readDistance, this allows negative values.
-     * 
-     * @param sensor The sensor to read from
-     * @return Parsed float value, or Float.NaN if unavailable/error
      */
     public static float readFloat(ISensor sensor) {
         if (sensor == null || !sensor.isAvailable()) {
@@ -69,9 +63,6 @@ public class SensorReader {
     
     /**
      * Read raw sensor value string without parsing.
-     * 
-     * @param sensor The sensor to read from
-     * @return Raw sensor value string, or null if unavailable/error
      */
     public static String readRaw(ISensor sensor) {
         if (sensor == null || !sensor.isAvailable()) {

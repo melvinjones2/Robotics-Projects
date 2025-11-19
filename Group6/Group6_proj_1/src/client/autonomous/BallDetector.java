@@ -14,17 +14,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 
 /**
- * Autonomous ball detection and approach using 360-degree scanning.
- * 
- * Strategy:
- * 1. Scan 360° in 10° steps to find closest object
- * 2. Rotate to face the object
- * 3. Drive forward with periodic sweep scans for alignment correction
- * 4. Slow down at 15cm, stop sweeping, drive straight to 5cm
- * 
- * Sensors:
- * - Ultrasonic: Long-range detection (50+ cm)
- * - Infrared: Close-range precision (<50cm), center-mounted
+ * Autonomous ball detection using 360deg scan and sensor fusion.
  */
 public class BallDetector {
     
@@ -60,10 +50,6 @@ public class BallDetector {
     private final float[] scanDistances = new float[360 / SCAN_STEP_DEGREES];
     private final int[] scanAngles = new int[360 / SCAN_STEP_DEGREES];
     
-    /**
-     * Circular buffer for filtering noisy sensor readings.
-     * Maintains running average and stores most recent filtered value.
-     */
     private static class SensorBuffer {
         private final float[] buffer;
         private int index;
@@ -107,13 +93,6 @@ public class BallDetector {
     
     /**
      * Constructor with warehouse for thread-safe sensor data access.
-     * 
-     * @param ultrasonicSensor ultrasonic sensor (legacy, can be null)
-     * @param infraredSensor infrared sensor (legacy, can be null)
-     * @param gyroSensor gyro sensor (not used, can be null)
-     * @param colorSensor color sensor (not used, can be null)
-     * @param out output stream for logging
-     * @param warehouse sensor data warehouse (preferred method)
      */
     public BallDetector(ISensor ultrasonicSensor, ISensor infraredSensor, 
                        ISensor gyroSensor, ISensor colorSensor, 
@@ -137,21 +116,12 @@ public class BallDetector {
         }
     }
     
-    /**
-     * Legacy constructor without warehouse.
-     * @deprecated Use constructor with warehouse parameter.
-     */
     @Deprecated
     public BallDetector(ISensor ultrasonicSensor, ISensor infraredSensor, 
                        ISensor gyroSensor, ISensor colorSensor, BufferedWriter out) {
         this(ultrasonicSensor, infraredSensor, gyroSensor, colorSensor, out, null);
     }
     
-    /**
-     * Main entry point for ball detection and approach.
-     * 
-     * @return true if ball was successfully reached, false otherwise
-     */
     public boolean searchAndApproachBall() {
         if (!isSystemReady()) {
             log("System not ready");
@@ -200,10 +170,6 @@ public class BallDetector {
     
     /**
      * Performs 360° scan while continuously rotating to locate closest object.
-     * Uses gyro + tacho counts for accurate angle tracking during movement.
-     * Reads sensors from warehouse - no blocking!
-     * 
-     * @return angle to rotate back to face closest object, or Integer.MAX_VALUE if none found
      */
     private int scan360ToFindBall() {
         log("Starting continuous 360 scan...");
@@ -287,14 +253,9 @@ public class BallDetector {
     
     /**
      * Quick sweep scan to verify alignment with ball.
-     * Uses ultrasonic for far (≥50cm), IR for close (<50cm).
-     * IR is center-mounted so aligning to IR = ball is centered.
-     * 
-     * @param sweepRange degrees to scan left/right (e.g., 45 = -45° to +45°)
-     * @return correction angle applied
      */
     private int quickSweepScan(int sweepRange) {
-        log("Quick sweep scan (±" + sweepRange + " deg)...");
+        log("Quick sweep scan (+/-" + sweepRange + " deg)...");
         
         // Adjust number of positions based on sweep range
         int numPositions = (sweepRange <= 20) ? 3 : 5;  // 3 positions for small sweeps, 5 for larger
@@ -370,13 +331,6 @@ public class BallDetector {
     
     /**
      * Drive forward toward ball with periodic alignment sweeps.
-     * 
-     * Behavior:
-     * - >20cm: Sweep every 5s for alignment correction
-     * - 15-20cm: Slow down to 1/3 speed, NO MORE SWEEPS
-     * - ≤5cm: Stop
-     * 
-     * @return true if ball reached successfully
      */
     private boolean approachBall() {
         log("Approaching ball with continuous tracking...");
@@ -387,7 +341,6 @@ public class BallDetector {
         int sweepInterval = 5000;  // Sweep every 5 seconds (more time for forward movement)
         float lastValidDistance = -1;
         
-        // Use DifferentialDrive move command (not manual motor control)
         drive.move(true, DRIVE_SPEED);
         
         int loopCount = 0;
@@ -404,7 +357,7 @@ public class BallDetector {
                 }
             }
             
-            if (dist > 0 && dist < 200.0f) {  // Only update if reasonable
+            if (dist > 0 && dist < 200.0f) {  // Only update if reasonable // I might not need this anymore because we made signals inf
                 distBuffer.update(dist);
                 lastValidDistance = dist;
             }
@@ -447,12 +400,12 @@ public class BallDetector {
                 sleep(200);  // Brief pause to ensure motors stopped
                 
                 // Use smaller sweep range when getting closer
-                int sweepRange = 45;  // Default: ±45 degrees
+                int sweepRange = 45;  // Default: +/-45 degrees
                 if (avgDist < 40.0f) {
-                    sweepRange = 30;  // Getting closer: ±30 degrees
+                    sweepRange = 30;  // Getting closer: +/-30 degrees
                 }
                 if (avgDist < 30.0f) {
-                    sweepRange = 20;  // Close: ±20 degrees
+                    sweepRange = 20;  // Close: +/-20 degrees
                 }
                 
                 quickSweepScan(sweepRange);
@@ -475,14 +428,6 @@ public class BallDetector {
     /**
      * Reads distance using sensor fusion strategy.
      * Uses CloseRangeFusionStrategy for final approach (prefers IR <20cm).
-     * 
-     * Warehouse Integration:
-     * - If warehouse available: reads from centralized store (thread-safe)
-     * - Otherwise: falls back to direct sensor reading (legacy)
-     * 
-     * Strategy Pattern: Delegates to ISensorFusionStrategy for flexible fusion algorithms.
-     * 
-     * @return distance in cm, or -1 if no valid reading
      */
     private float readBestDistance() {
         // Prefer warehouse if available (thread-safe, no blocking)
@@ -496,8 +441,6 @@ public class BallDetector {
     
     /**
      * Reads fused distance from warehouse using CloseRange strategy logic.
-     * Prefers IR at close range (<20cm), otherwise uses ultrasonic.
-     * Gracefully handles errors during shutdown.
      */
     private float readFromWarehouse() {
         try {
@@ -527,11 +470,6 @@ public class BallDetector {
      * Reads distance for scanning - intelligently combines both sensors.
      * Prioritizes IR (center-mounted, better for ball detection).
      * Uses US as fallback for far objects or when IR returns infinity.
-     * 
-     * Logic:
-     * - If IR sees something (not infinity), use it
-     * - Otherwise use US
-     * - Sensors return Float.POSITIVE_INFINITY when object is out of range
      */
     private float readScanDistance() {
         if (warehouse == null) {
@@ -597,12 +535,6 @@ public class BallDetector {
      * Gyro provides direct angle measurement but may drift.
      * Tacho provides reliable relative rotation but requires calibration.
      * This method combines both for best accuracy.
-     * 
-     * @param initialGyro starting gyro angle
-     * @param currentGyro current gyro angle
-     * @param initialTacho starting tacho count
-     * @param currentTacho current tacho count
-     * @return estimated rotation angle in degrees
      */
     private int estimateRotationAngle(float initialGyro, float currentGyro, 
                                       int initialTacho, int currentTacho) {

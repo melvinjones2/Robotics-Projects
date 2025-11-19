@@ -6,7 +6,7 @@ import lejos.hardware.lcd.LCD;
 
 import java.io.IOException;
 
-/**
+/** DOESNT WORK YET
  * Command to set the target ball color for detection.
  * 
  * Syntax: SETCOLOR <colorId>

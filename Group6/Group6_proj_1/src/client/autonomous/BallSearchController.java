@@ -10,11 +10,7 @@ import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
 import lejos.utility.Delay;
 
-/**
- * Autonomous ball search - explores environment and approaches detected balls.
- * 
- * Can use SensorDataWarehouse for thread-safe sensor access.
- */
+// Autonomous ball search with sensor fusion
 public class BallSearchController extends AutonomousTask {
     
     private boolean enabled = false;
@@ -25,9 +21,6 @@ public class BallSearchController extends AutonomousTask {
     private int ballsFound = 0;
     private int scanAttempts = 0;
     
-    /**
-     * Constructor with warehouse for thread-safe sensor data access.
-     */
     public BallSearchController(ISensor ultrasonicSensor, ISensor infraredSensor, 
                                ISensor gyroSensor, ISensor colorSensor, 
                                java.io.BufferedWriter out, SensorDataWarehouse warehouse) {
@@ -47,21 +40,12 @@ public class BallSearchController extends AutonomousTask {
         this.drive = new DifferentialDrive();
     }
     
-    /**
-     * Legacy constructor without warehouse.
-     * @deprecated Use constructor with warehouse parameter.
-     */
     @Deprecated
     public BallSearchController(ISensor ultrasonicSensor, ISensor infraredSensor, 
                                ISensor gyroSensor, ISensor colorSensor, java.io.BufferedWriter out) {
         this(ultrasonicSensor, infraredSensor, gyroSensor, colorSensor, out, null);
     }
     
-    /**
-     * Enable/disable autonomous search mode.
-     * 
-     * @param enabled true to start searching, false to stop
-     */
     public synchronized void setEnabled(boolean enabled) {
         if (this.enabled == enabled) {
             return; // No change
