@@ -147,6 +147,17 @@ public class ServerGUI {
         armPanel.add(createCommandButton("Arm 0°", "ARM 0", out, frameCount));
         commandsPanel.add(armPanel);
         
+        // Course Materials Navigation Commands
+        JPanel courseNavPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        courseNavPanel.setBorder(BorderFactory.createTitledBorder("Course Navigation (PowerPoint Examples)"));
+        courseNavPanel.add(createCommandButton("Square 20cm", "NAVSQUARE 20", out, frameCount));
+        courseNavPanel.add(createCommandButton("Square 30cm", "NAVSQUARE 30", out, frameCount));
+        courseNavPanel.add(createCommandButton("Rotate 90°", "NAVROTATE 90", out, frameCount));
+        courseNavPanel.add(createCommandButton("Rotate -90°", "NAVROTATE -90", out, frameCount));
+        courseNavPanel.add(createCommandButton("Travel 30cm", "NAVTRAVEL 30", out, frameCount));
+        courseNavPanel.add(createCommandButton("Travel -30cm", "NAVTRAVEL -30", out, frameCount));
+        commandsPanel.add(courseNavPanel);
+        
         JPanel sensorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         sensorPanel.setBorder(BorderFactory.createTitledBorder("Sensors & Battery"));
         sensorPanel.add(createCommandButton("Get Battery", "GET_BATTERY", out, frameCount));

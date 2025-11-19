@@ -84,6 +84,16 @@ public class CommandFactory {
             case "BYE":
                 return new ByeCommand();
                 
+            // Navigation commands from course materials
+            case "NAVSQUARE":
+                return new NavSquareCommand(parsedCmd);
+                
+            case "NAVROTATE":
+                return new NavRotateCommand(parsedCmd);
+                
+            case "NAVTRAVEL":
+                return new NavTravelCommand(parsedCmd);
+                
             default:
                 return null;
         }
