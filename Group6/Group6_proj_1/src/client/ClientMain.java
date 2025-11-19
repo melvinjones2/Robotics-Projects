@@ -1,12 +1,14 @@
 package client;
 
 import client.config.RobotConfig;
+import client.data.SensorDataWarehouse;
 import client.motor.MotorFactory;
 import client.network.HeartbeatThread;
 import client.network.CommandHandler;
 import client.network.SensorThread;
 import client.sensor.ISensor;
 import client.sensor.SensorFactory;
+import common.ProtocolConstants;
 import lejos.hardware.Button;
 import lejos.hardware.lcd.LCD;
 
@@ -48,6 +50,9 @@ public class ClientMain {
                 SensorFactory.getDefaultSensorConfig()
             );
             
+            // Create shared sensor data warehouse for multi-thread access
+            SensorDataWarehouse warehouse = new SensorDataWarehouse();
+            
             // Start threads
             Thread heartbeat = new Thread(
                 new HeartbeatThread(out, running, RobotConfig.TICK_RATE_MS),
@@ -55,11 +60,13 @@ public class ClientMain {
             );
             
             // Store command handler reference for button control
-            final CommandHandler cmdHandler = new CommandHandler(in, out, running, sensors);
+            // Pass warehouse so autonomous tasks can access sensor data
+            final CommandHandler cmdHandler = new CommandHandler(in, out, running, sensors, warehouse);
             Thread commands = new Thread(cmdHandler, "commands");
             
+            // SensorThread writes to warehouse, autonomous tasks can read from it
             Thread sensorThread = new Thread(
-                new SensorThread(out, running, sensors, RobotConfig.SENSOR_POLL_INTERVAL_MS),
+                new SensorThread(out, running, sensors, RobotConfig.SENSOR_POLL_INTERVAL_MS, warehouse),
                 "sensors"
             );
             
@@ -67,20 +74,24 @@ public class ClientMain {
             commands.start();
             sensorThread.start();
             
-            while (running.get() && Button.ESCAPE.isUp()) {
-                if (Button.DOWN.isDown()) {
-                    if (cmdHandler.getBallSearchController() != null) {
-                        cmdHandler.getBallSearchController().toggle();
-                        while (Button.DOWN.isDown() && running.get()) {
-                            Thread.sleep(50);
+            try {
+                while (running.get() && Button.ESCAPE.isUp()) {
+                    if (Button.DOWN.isDown()) {
+                        if (cmdHandler.getBallSearchController() != null) {
+                            cmdHandler.getBallSearchController().toggle();
+                            while (Button.DOWN.isDown() && running.get()) {
+                                Thread.sleep(50);
+                            }
                         }
                     }
+                    
+                    Thread.sleep(RobotConfig.BUTTON_POLL_INTERVAL_MS);
                 }
-                
-                Thread.sleep(RobotConfig.BUTTON_POLL_INTERVAL_MS);
+            } finally {
+                // Always clean up threads and sensors, even if error occurs
+                shutdown(running, heartbeat, commands, sensorThread);
+                closeSensors(sensors);
             }
-            
-            shutdown(running, heartbeat, commands, sensorThread);
             
         } catch (Exception e) {
             handleError(e);
@@ -102,7 +113,8 @@ public class ClientMain {
             return false;
         }
         
-        out.write("READY:0\n");
+        // Use type-safe message builder
+        out.write(ProtocolConstants.buildReadyMessage(0) + "\n");
         out.flush();
         return true;
     }
@@ -148,6 +160,18 @@ public class ClientMain {
             sensorThread.join(RobotConfig.THREAD_JOIN_TIMEOUT_MS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+    
+    private static void closeSensors(List<ISensor> sensors) {
+        if (sensors != null) {
+            for (ISensor sensor : sensors) {
+                try {
+                    sensor.close();
+                } catch (Exception e) {
+                    // Ignore errors during cleanup
+                }
+            }
         }
     }
     

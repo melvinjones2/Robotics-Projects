@@ -1,7 +1,11 @@
 package server.logging;
 
-import java.io.*;
-import java.nio.file.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -47,7 +51,10 @@ public class LogManager {
         String logMsg = String.format("[%s] [%5s] [+%dms] %s", 
             timestamp, level.getLabel(), elapsed, msg);
         
+        // Print to console (intentional - server runs with console available)
         System.out.println(logMsg);
+        
+        // Also write to file if available
         if (logWriter != null) {
             try {
                 logWriter.write(logMsg);

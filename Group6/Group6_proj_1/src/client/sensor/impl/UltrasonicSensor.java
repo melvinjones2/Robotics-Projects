@@ -7,15 +7,10 @@ import lejos.robotics.SampleProvider;
 
 public class UltrasonicSensor extends BaseSampleSensor<EV3UltrasonicSensor> {
 
-    private static final int FILTER_SIZE = 5;
-
     private final String mode;
-    private final float[] filterBuffer = new float[FILTER_SIZE];
-    private int filterIndex = 0;
-    private int filterCount = 0;
 
     public UltrasonicSensor() {
-        this(SensorPort.S1, "distance");
+        this(SensorPort.S1);
     }
 
     public UltrasonicSensor(Port port) {

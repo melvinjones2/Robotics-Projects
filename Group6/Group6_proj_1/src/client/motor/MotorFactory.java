@@ -14,7 +14,7 @@ public class MotorFactory {
         LARGE, MEDIUM
     }
     
-    private static final Map<Character, BaseRegulatedMotor> motorCache = new HashMap<>();
+    private static final Map<Character, BaseRegulatedMotor> motorCache = new HashMap<Character, BaseRegulatedMotor>();
     
     public static BaseRegulatedMotor getMotor(char port) {
         port = Character.toUpperCase(port);
@@ -83,6 +83,7 @@ public class MotorFactory {
                 try {
                     motor.stop(false);
                 } catch (Exception e) {
+                    // Motor already stopped or hardware error - safe to continue with other motors
                 }
             }
         }

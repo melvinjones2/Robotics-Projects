@@ -1,9 +1,9 @@
 package server.handlers;
 
+import common.ProtocolConstants;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import server.gui.ServerGUI;
 import server.logging.LogManager;
 
@@ -48,20 +48,12 @@ public class TickMessageHandler implements IMessageHandler {
     }
     
     private void sendTickAck(BufferedWriter out, int frame) throws IOException {
-        synchronized (out) {
-            out.write("TICK_ACK:" + frame);
-            out.write("\n");
-            out.flush();
-        }
+        server.Server.sendSafe(out, ProtocolConstants.buildTickAckMessage(frame));
     }
     
     private int extractFrame(String msg) {
-        try {
-            // TICK:123
-            return Integer.parseInt(msg.substring(5).trim());
-        } catch (Exception e) {
-            return -1;
-        }
+        // Use type-safe message parser
+        return ProtocolConstants.parseTickMessage(msg);
     }
     
     public int getClientFrame() {

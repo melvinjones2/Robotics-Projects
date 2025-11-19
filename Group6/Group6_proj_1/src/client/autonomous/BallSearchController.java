@@ -1,36 +1,60 @@
 package client.autonomous;
 
 import client.config.RobotConfig;
+import client.data.SensorDataWarehouse;
 import client.motor.DifferentialDrive;
+import client.motor.IDriveController;
 import client.sensor.ISensor;
 import lejos.hardware.Button;
 import lejos.hardware.Sound;
 import lejos.hardware.lcd.LCD;
 import lejos.utility.Delay;
 
-// Autonomous ball search - explores environment and approaches detected balls
-public class BallSearchController {
+/**
+ * Autonomous ball search - explores environment and approaches detected balls.
+ * 
+ * Can use SensorDataWarehouse for thread-safe sensor access.
+ */
+public class BallSearchController extends AutonomousTask {
     
     private boolean enabled = false;
-    private boolean running = false;
-    private Thread searchThread = null;
     
     private BallDetector ballDetector;
-    private final DifferentialDrive drive;
+    private final IDriveController drive;
     
     private int ballsFound = 0;
     private int scanAttempts = 0;
     
-    public BallSearchController(ISensor ultrasonicSensor, ISensor infraredSensor, ISensor gyroSensor, ISensor colorSensor, java.io.BufferedWriter out) {
+    /**
+     * Constructor with warehouse for thread-safe sensor data access.
+     */
+    public BallSearchController(ISensor ultrasonicSensor, ISensor infraredSensor, 
+                               ISensor gyroSensor, ISensor colorSensor, 
+                               java.io.BufferedWriter out, SensorDataWarehouse warehouse) {
+        super("BallSearch", out);
+        
+        // Create ball detector with warehouse support
         this.ballDetector = new BallDetector(
             ultrasonicSensor != null ? ultrasonicSensor : infraredSensor, 
             infraredSensor,
             gyroSensor, 
             colorSensor,
-            out
+            out,
+            warehouse
         );
         
+        // Use drive controller abstraction
         this.drive = new DifferentialDrive();
+    }
+    
+    /**
+     * Legacy constructor without warehouse.
+     * @deprecated Use constructor with warehouse parameter.
+     */
+    @Deprecated
+    public BallSearchController(ISensor ultrasonicSensor, ISensor infraredSensor, 
+                               ISensor gyroSensor, ISensor colorSensor, java.io.BufferedWriter out) {
+        this(ultrasonicSensor, infraredSensor, gyroSensor, colorSensor, out, null);
     }
     
     /**
@@ -69,43 +93,28 @@ public class BallSearchController {
     }
     
     private void startSearch() {
-        if (running) {
-            return;
-        }
-        
         ballsFound = 0;
         scanAttempts = 0;
         
-        running = true;
-        searchThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                searchLoop();
-            }
-        }, "ball-search");
-        searchThread.start();
-        
+        start(); // Use base class start()
+    }
+    
+    private void stopSearch() {
+        stop(); // Use base class stop()
+    }
+    
+    @Override
+    protected void onStart() {
         LCD.clear(1);
         LCD.drawString("AUTOSEARCH: ON", 0, 1);
         Sound.beep();
     }
     
-    private void stopSearch() {
-        running = false;
-        
+    @Override
+    protected void onStop() {
         // Stop ball detector if running
         if (ballDetector != null) {
             ballDetector.stop();
-        }
-        
-        // Wait for thread to finish
-        if (searchThread != null) {
-            try {
-                searchThread.join(2000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            searchThread = null;
         }
         
         drive.stop();
@@ -116,8 +125,9 @@ public class BallSearchController {
         Sound.twoBeeps();
     }
     
-    private void searchLoop() {
-        while (running && !Button.ESCAPE.isDown()) {
+    @Override
+    protected void execute() {
+        while (shouldContinue() && !Button.ESCAPE.isDown()) {
             try {
                 LCD.clear(1);
                 LCD.drawString("AUTOSEARCH RUN", 0, 1);
@@ -126,7 +136,7 @@ public class BallSearchController {
                 scanAttempts++;
                 boolean found = ballDetector.searchAndApproachBall();
                 
-                if (!running) break;
+                if (!shouldContinue()) break;
                 
                 if (found) {
                     ballsFound++;
@@ -144,7 +154,6 @@ public class BallSearchController {
         }
         
         drive.stop();
-        running = false;
     }
     
     /**

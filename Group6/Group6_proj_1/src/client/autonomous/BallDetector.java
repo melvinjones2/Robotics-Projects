@@ -1,6 +1,10 @@
 ﻿package client.autonomous;
 
+import client.autonomous.fusion.CloseRangeFusionStrategy;
+import client.autonomous.fusion.ISensorFusionStrategy;
+import client.autonomous.fusion.RangeAdaptiveFusionStrategy;
 import client.config.RobotConfig;
+import client.data.SensorDataWarehouse;
 import client.motor.DifferentialDrive;
 import client.motor.MotorFactory;
 import client.sensor.ISensor;
@@ -33,9 +37,16 @@ public class BallDetector {
     private static final int FILTER_SIZE = 5;
     private static final int SCAN_STEP_DEGREES = 10;
     
-    // Sensors
+    // Sensors (legacy - for direct reading)
     private final ISensor ultrasonicSensor;
     private final ISensor infraredSensor;
+    
+    // Sensor Fusion Strategies
+    private final ISensorFusionStrategy scanStrategy;  // Used for 360° scan
+    private final ISensorFusionStrategy approachStrategy;  // Used for final approach
+    
+    // Data warehouse (preferred - thread-safe access)
+    private final SensorDataWarehouse warehouse;
     
     // Motors
     private final DifferentialDrive drive;
@@ -94,10 +105,29 @@ public class BallDetector {
         }
     }
     
-    public BallDetector(ISensor ultrasonicSensor, ISensor infraredSensor, ISensor gyroSensor, ISensor colorSensor, BufferedWriter out) {
+    /**
+     * Constructor with warehouse for thread-safe sensor data access.
+     * 
+     * @param ultrasonicSensor ultrasonic sensor (legacy, can be null)
+     * @param infraredSensor infrared sensor (legacy, can be null)
+     * @param gyroSensor gyro sensor (not used, can be null)
+     * @param colorSensor color sensor (not used, can be null)
+     * @param out output stream for logging
+     * @param warehouse sensor data warehouse (preferred method)
+     */
+    public BallDetector(ISensor ultrasonicSensor, ISensor infraredSensor, 
+                       ISensor gyroSensor, ISensor colorSensor, 
+                       BufferedWriter out, SensorDataWarehouse warehouse) {
         this.ultrasonicSensor = ultrasonicSensor;
         this.infraredSensor = infraredSensor;
         this.out = out;
+        this.warehouse = warehouse;
+        
+        // Configure sensor fusion strategies
+        // RangeAdaptive for sweeps (uses US≥50cm, IR<50cm for center alignment)
+        // CloseRange for final approach (prefers IR<20cm for precision)
+        this.scanStrategy = new RangeAdaptiveFusionStrategy();
+        this.approachStrategy = new CloseRangeFusionStrategy();
         
         this.drive = new DifferentialDrive();
         
@@ -105,6 +135,16 @@ public class BallDetector {
         if (this.armMotor != null) {
             this.armMotor.setSpeed(RobotConfig.ARM_SPEED);
         }
+    }
+    
+    /**
+     * Legacy constructor without warehouse.
+     * @deprecated Use constructor with warehouse parameter.
+     */
+    @Deprecated
+    public BallDetector(ISensor ultrasonicSensor, ISensor infraredSensor, 
+                       ISensor gyroSensor, ISensor colorSensor, BufferedWriter out) {
+        this(ultrasonicSensor, infraredSensor, gyroSensor, colorSensor, out, null);
     }
     
     /**
@@ -159,44 +199,67 @@ public class BallDetector {
     }
     
     /**
-     * Performs 360° scan in 10° increments to locate closest object.
+     * Performs 360° scan while continuously rotating to locate closest object.
+     * Uses gyro + tacho counts for accurate angle tracking during movement.
+     * Reads sensors from warehouse - no blocking!
      * 
      * @return angle to rotate back to face closest object, or Integer.MAX_VALUE if none found
      */
     private int scan360ToFindBall() {
-        log("Starting 360 degree scan...");
+        log("Starting continuous 360 scan...");
         
         int scanIndex = 0;
-        int totalRotation = 0;
+        int targetRotation = 360;
         
-        // Scan full 360 degrees in 10-degree steps (36 readings total)
-        while (totalRotation < 360 && running) {
-            // Rotate by step amount using your rotation command
-            drive.rotateDegrees(SCAN_STEP_DEGREES, SCAN_SPEED);
-            drive.stop();  // Ensure motors stop after rotate
-            totalRotation += SCAN_STEP_DEGREES;
+        // Get initial gyro reading (if available from warehouse)
+        float initialGyroAngle = readGyroAngle();
+        int initialTacho = getAverageTachoCount();
+        
+        // Start continuous slow rotation
+        drive.turnInPlace(true, SCAN_SPEED);
+        
+        long lastSampleTime = System.currentTimeMillis();
+        int lastRecordedAngle = 0;
+        
+        // Continuously scan while rotating
+        while (running && scanIndex < scanDistances.length) {
+            // Calculate current rotation using gyro + tacho
+            float currentGyroAngle = readGyroAngle();
+            int currentTacho = getAverageTachoCount();
             
-            // Wait for rotation to complete and robot to settle
-            sleep(100);
+            int estimatedAngle = estimateRotationAngle(
+                initialGyroAngle, currentGyroAngle,
+                initialTacho, currentTacho
+            );
             
-            // Take multiple distance readings at this angle
-            SensorBuffer buffer = new SensorBuffer();
-            for (int i = 0; i < 3; i++) {
-                float dist = readBestDistance();
-                buffer.update(dist);
-                sleep(SAMPLE_INTERVAL_MS);
+            // Record sample at each 10-degree increment
+            if (estimatedAngle >= lastRecordedAngle + SCAN_STEP_DEGREES) {
+                // Read distance from warehouse using BOTH sensors (non-blocking!)
+                // Use minimum distance to ensure we detect ball with either sensor
+                float dist = readScanDistance();
+                
+                scanDistances[scanIndex] = dist;
+                scanAngles[scanIndex] = estimatedAngle;
+                
+                if (dist > 0 && dist < 100.0f) {
+                    log("Angle " + estimatedAngle + " deg: " + (int)dist + " cm");
+                }
+                
+                scanIndex++;
+                lastRecordedAngle = estimatedAngle;
             }
             
-            // Store the reading for this angle
-            scanDistances[scanIndex] = buffer.getLatest();
-            scanAngles[scanIndex] = totalRotation;
-            
-            if (scanDistances[scanIndex] > 0 && scanDistances[scanIndex] < 100.0f) {
-                log("Angle " + totalRotation + " deg: " + (int)scanDistances[scanIndex] + " cm");
+            // Stop when we've rotated 360 degrees
+            if (estimatedAngle >= targetRotation) {
+                break;
             }
             
-            scanIndex++;
+            // Small delay to prevent busy-waiting
+            sleep(20);
         }
+        
+        // Stop rotation
+        drive.stop();
         
         // Find the closest object from all scan readings
         float bestDistance = MAX_DISTANCE;
@@ -273,27 +336,13 @@ public class BallDetector {
             drive.stop();
             sleep(100);
             
-            // Take reading - use best sensor for the range
+            // Take reading using range-adaptive sensor fusion
             SensorBuffer buffer = new SensorBuffer();
             for (int j = 0; j < 3; j++) {
-                float ir = readInfraredDistance();
-                float us = readUltrasonicDistance();
-                
-                // Use ultrasonic for far (50+cm), IR for close (<50cm)
-                // IR is centered and more accurate at close range
-                if (us > 0 && us >= 50.0f) {
-                    // Far away: use ultrasonic
-                    buffer.update(us);
-                } else if (ir > 0 && ir < 50.0f) {
-                    // Close range: use IR (centered sensor)
-                    buffer.update(ir);
-                } else if (ir > 0 && ir < 100.0f) {
-                    // IR available but might be close to 50cm threshold
-                    buffer.update(ir);
-                } else if (us > 0 && us < 100.0f) {
-                    // Fallback to ultrasonic
-                    buffer.update(us);
-                }
+                // Use RangeAdaptiveFusionStrategy: US≥50cm, IR<50cm
+                // IR is center-mounted, so aligning to closest IR = ball is centered
+                float dist = scanStrategy.fuseDistance(ultrasonicSensor, infraredSensor);
+                buffer.update(dist);
                 sleep(SAMPLE_INTERVAL_MS);
             }
             distances[i] = buffer.getLatest();
@@ -424,71 +473,171 @@ public class BallDetector {
     }
     
     /**
-     * Reads distance using best sensor for current range.
-     * Prefers IR at very close range (<20cm) for precision.
+     * Reads distance using sensor fusion strategy.
+     * Uses CloseRangeFusionStrategy for final approach (prefers IR <20cm).
+     * 
+     * Warehouse Integration:
+     * - If warehouse available: reads from centralized store (thread-safe)
+     * - Otherwise: falls back to direct sensor reading (legacy)
+     * 
+     * Strategy Pattern: Delegates to ISensorFusionStrategy for flexible fusion algorithms.
      * 
      * @return distance in cm, or -1 if no valid reading
      */
     private float readBestDistance() {
-        float us = readUltrasonicDistance();
-        float ir = readInfraredDistance();
-        
-        // Prefer infrared at close range (<20cm), otherwise use ultrasonic
-        if (ir > 0 && ir < 20.0f) {
-            return ir;
-        } else if (us > 0) {
-            return us;
-        } else if (ir > 0) {
-            return ir;
+        // Prefer warehouse if available (thread-safe, no blocking)
+        if (warehouse != null) {
+            return readFromWarehouse();
         }
         
-        return -1;
+        // Fallback to direct sensor reading (legacy)
+        return approachStrategy.fuseDistance(ultrasonicSensor, infraredSensor);
     }
     
-    // Read infrared sensor distance in cm
-    private float readInfraredDistance() {
-        if (infraredSensor == null || !infraredSensor.isAvailable()) {
+    /**
+     * Reads fused distance from warehouse using CloseRange strategy logic.
+     * Prefers IR at close range (<20cm), otherwise uses ultrasonic.
+     * Gracefully handles errors during shutdown.
+     */
+    private float readFromWarehouse() {
+        try {
+            SensorDataWarehouse.SensorReading usReading = warehouse.getLatest("ultrasonic");
+            SensorDataWarehouse.SensorReading irReading = warehouse.getLatest("infrared");
+            
+            float us = (usReading != null) ? usReading.value : -1;
+            float ir = (irReading != null) ? irReading.value : -1;
+            
+            // CloseRange fusion logic: prefer IR <20cm, else US, else IR
+            if (ir > 0 && ir < 20.0f) {
+                return ir;
+            } else if (us > 0) {
+                return us;
+            } else if (ir > 0) {
+                return ir;
+            }
+            
             return -1;
+        } catch (Exception e) {
+            // Gracefully handle any errors (e.g., during shutdown)
+            return -1;
+        }
+    }
+    
+    /**
+     * Reads distance for scanning - intelligently combines both sensors.
+     * Prioritizes IR (center-mounted, better for ball detection).
+     * Uses US as fallback for far objects or when IR returns infinity.
+     * 
+     * Logic:
+     * - If IR sees something (not infinity), use it
+     * - Otherwise use US
+     * - Sensors return Float.POSITIVE_INFINITY when object is out of range
+     */
+    private float readScanDistance() {
+        if (warehouse == null) {
+            // Fallback to direct reading using scan strategy
+            return scanStrategy.fuseDistance(ultrasonicSensor, infraredSensor);
         }
         
         try {
-            String value = infraredSensor.readValue();
-            if (value != null && value.contains("=")) {
-                String number = value.substring(value.indexOf('=') + 1).trim();
-                if (number.contains(",")) {
-                    number = number.split(",")[0];
-                }
-                float parsed = Float.parseFloat(number);
-                return (parsed > 0 && !Float.isInfinite(parsed)) ? parsed : -1;
+            SensorDataWarehouse.SensorReading usReading = warehouse.getLatest("ultrasonic");
+            SensorDataWarehouse.SensorReading irReading = warehouse.getLatest("infrared");
+            
+            float us = (usReading != null) ? usReading.value : Float.POSITIVE_INFINITY;
+            float ir = (irReading != null) ? irReading.value : Float.POSITIVE_INFINITY;
+            
+            // Prioritize IR if it sees something (not infinity)
+            if (!Float.isInfinite(ir) && ir > 0) {
+                return ir;  // IR has a valid reading - use it (center-mounted)
             }
+            
+            // IR is infinity, use US
+            if (!Float.isInfinite(us) && us > 0) {
+                return us;  // US has a valid reading
+            }
+            
+            return -1;  // Both sensors see nothing or are invalid
         } catch (Exception e) {
-            // Ignore parse errors
+            return -1;
         }
-        
-        return -1;
     }
     
-    // Read ultrasonic sensor distance in cm
-    private float readUltrasonicDistance() {
-        if (ultrasonicSensor == null || !ultrasonicSensor.isAvailable()) {
-            return -1;
+    /**
+     * Reads current gyro angle from warehouse.
+     * Returns 0 if gyro not available or warehouse not initialized.
+     */
+    private float readGyroAngle() {
+        if (warehouse == null) {
+            return 0;
         }
         
         try {
-            String value = ultrasonicSensor.readValue();
-            if (value != null && value.contains("=")) {
-                String number = value.substring(value.indexOf('=') + 1).trim();
-                if (number.contains(",")) {
-                    number = number.split(",")[0];
-                }
-                float parsed = Float.parseFloat(number);
-                return (parsed > 0 && !Float.isInfinite(parsed)) ? parsed : -1;
-            }
+            SensorDataWarehouse.SensorReading gyroReading = warehouse.getLatest("gyro");
+            return (gyroReading != null) ? gyroReading.value : 0;
         } catch (Exception e) {
-            // Ignore parse errors
+            return 0;
         }
+    }
+    
+    /**
+     * Gets average tacho count from both drive motors.
+     */
+    private int getAverageTachoCount() {
+        try {
+            int leftTacho = drive.getLeftMotor().getTachoCount();
+            int rightTacho = drive.getRightMotor().getTachoCount();
+            return (Math.abs(leftTacho) + Math.abs(rightTacho)) / 2;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Estimates rotation angle using both gyro and tacho counts for accuracy.
+     * Gyro provides direct angle measurement but may drift.
+     * Tacho provides reliable relative rotation but requires calibration.
+     * This method combines both for best accuracy.
+     * 
+     * @param initialGyro starting gyro angle
+     * @param currentGyro current gyro angle
+     * @param initialTacho starting tacho count
+     * @param currentTacho current tacho count
+     * @return estimated rotation angle in degrees
+     */
+    private int estimateRotationAngle(float initialGyro, float currentGyro, 
+                                      int initialTacho, int currentTacho) {
+        // Calculate angle from gyro (direct measurement)
+        float gyroAngle = currentGyro - initialGyro;
         
-        return -1;
+        // Calculate angle from tacho counts (motor encoder)
+        int tachoChange = currentTacho - initialTacho;
+        float tachoAngle = tachoToDegrees(tachoChange);
+        
+        // If gyro is available (non-zero), use weighted average
+        // Favor gyro for accuracy, but use tacho to prevent drift
+        if (Math.abs(gyroAngle) > 0.1f) {
+            // 70% gyro, 30% tacho (gyro is more accurate for angles)
+            return Math.round(gyroAngle * 0.7f + tachoAngle * 0.3f);
+        } else {
+            // Gyro not available, use tacho only
+            return Math.round(tachoAngle);
+        }
+    }
+    
+    /**
+     * Converts motor tacho count change to robot rotation degrees.
+     * Uses track width and wheel diameter from RobotConfig.
+     */
+    private float tachoToDegrees(int tachoChange) {
+        // Convert motor degrees to wheel arc length
+        float wheelCircumference = (float) (Math.PI * RobotConfig.WHEEL_DIAMETER_MM);
+        float arcLength = (Math.abs(tachoChange) / 360.0f) * wheelCircumference;
+        
+        // Convert arc length to robot rotation angle
+        float trackCircumference = (float) (Math.PI * RobotConfig.TRACK_WIDTH_MM);
+        float robotAngle = (arcLength / trackCircumference) * 360.0f;
+        
+        return robotAngle;
     }
     
     // ========== System Management ==========

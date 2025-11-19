@@ -51,7 +51,7 @@ public class SensorFactory {
     
     // Create sensors from a list of configs
     public static List<ISensor> createSensors(List<SensorConfig> configs) {
-        List<ISensor> sensors = new ArrayList<>();
+        List<ISensor> sensors = new ArrayList<ISensor>();
         for (SensorConfig config : configs) {
             try {
                 ISensor sensor = createSensor(config);
@@ -76,9 +76,8 @@ public class SensorFactory {
                 // Wait briefly before retry
                 Thread.sleep(100);
             } catch (Exception e) {
-                if (attempt == maxRetries - 1) {
-                    System.err.println("Failed to create sensor after " + maxRetries + " attempts: " + config.getType());
-                }
+                // Sensor creation failed - will retry or return null
+                // No output on EV3 to avoid LCD clutter
             }
         }
         return null;
@@ -116,16 +115,13 @@ public class SensorFactory {
     
     // Create default sensor configuration
     public static List<SensorConfig> getDefaultSensorConfig() {
-        List<SensorConfig> configs = new ArrayList<>();
-//        configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S1, "distance")); // FIXED: Changed from "listen" to "distance" for ball detection
-//        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S2, "rgb")); // right
-//        configs.add(new SensorConfig(SensorConfig.SensorType.GYRO, SensorPort.S3, "rate"));
-//        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // left
+        List<SensorConfig> configs = new ArrayList<SensorConfig>();
         
         configs.add(new SensorConfig(SensorConfig.SensorType.ULTRASONIC, SensorPort.S2, "distance"));
-        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb")); // right
+        configs.add(new SensorConfig(SensorConfig.SensorType.LIGHT, SensorPort.S4, "rgb"));
         configs.add(new SensorConfig(SensorConfig.SensorType.GYRO, SensorPort.S3, "rate"));
         configs.add(new SensorConfig(SensorConfig.SensorType.INFRARED, SensorPort.S1, "distance"));
+        
         return configs;
     }
 }

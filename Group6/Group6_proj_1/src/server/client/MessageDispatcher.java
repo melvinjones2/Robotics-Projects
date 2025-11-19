@@ -1,5 +1,6 @@
 package server.client;
 
+import common.ProtocolConstants;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.HashMap;
@@ -9,12 +10,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import server.autonomous.ServerAutonomousController;
 import server.gui.ServerGUI;
 import server.handlers.BatteryLoggingMessageHandler;
-import server.handlers.BatteryMessageHandler;
 import server.handlers.ByeMessageHandler;
-import server.handlers.ControlMessageHandler;
 import server.handlers.GenericMessageHandler;
 import server.handlers.IMessageHandler;
-import server.handlers.ReplyMessageHandler;
 import server.handlers.SensorMessageHandler;
 import server.handlers.TickAckMessageHandler;
 import server.handlers.TickMessageHandler;
@@ -45,9 +43,9 @@ public class MessageDispatcher {
     }
     
     private void initHandlers() {
-        handlers.put("BATTERY:", new BatteryMessageHandler(gui));
-        handlers.put("REPLY:", new ReplyMessageHandler(gui));
-        handlers.put("CONTROL:", new ControlMessageHandler(gui));
+        handlers.put("BATTERY:", new GenericMessageHandler(gui, "BATTERY", 8));
+        handlers.put("REPLY:", new GenericMessageHandler(gui, "REPLY", 6));
+        handlers.put("CONTROL:", new GenericMessageHandler(gui, "CONTROL", 8));
         handlers.put("MOTOR:", new GenericMessageHandler(gui, "MOTOR", 6));
         handlers.put("LOG:", new GenericMessageHandler(gui, "LOG", 4));
         handlers.put("TICK_ACK:", new TickAckMessageHandler(gui));
@@ -91,27 +89,16 @@ public class MessageDispatcher {
     }
     
     private void sendCommandAck(String originalMsg, BufferedWriter out) throws IOException {
-        int frame = extractFrame(originalMsg);
+        // Use type-safe message parser to extract frame
+        int frame = ProtocolConstants.parseCmdAckMessage(originalMsg);
         if (frame >= 0) {
-            synchronized (out) {
-                out.write("CMD_ACK:" + frame);
-                out.write("\n");
-                out.flush();
-            }
+            server.Server.sendSafe(out, ProtocolConstants.buildCmdAckMessage(frame));
             LogManager.debug("Sent ACK for frame " + frame);
         }
     }
     
     private int extractFrame(String msg) {
-        int colonIdx = msg.lastIndexOf(':');
-        if (colonIdx > 0) {
-            try {
-                String potentialFrame = msg.substring(colonIdx + 1).trim();
-                return Integer.parseInt(potentialFrame);
-            } catch (NumberFormatException e) {
-                // No valid frame number
-            }
-        }
-        return -1;
+        // Use type-safe message parser
+        return ProtocolConstants.parseCmdAckMessage(msg);
     }
 }

@@ -1,6 +1,12 @@
 package server.client;
 
-import java.io.*;
+import common.ProtocolConstants;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,13 +74,10 @@ public class ClientHandler {
     }
 
     private int handshake(String resp) throws IOException {
-        if (resp != null && resp.trim().startsWith("READY:")) {
-            try {
-                return Integer.parseInt(resp.trim().split(":")[1]);
-            } catch (NumberFormatException e) {
-                LogManager.log("Invalid READY frame: " + resp);
-                return -1;
-            }
+        // Use type-safe message parser
+        int frame = ProtocolConstants.parseReadyMessage(resp);
+        if (frame >= 0) {
+            return frame;
         } else {
             LogManager.log("Handshake failed, got: " + resp);
             return -1;

@@ -1,9 +1,9 @@
 package server.handlers;
 
+import common.ProtocolConstants;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import server.gui.ServerGUI;
 import server.logging.LogManager;
 
@@ -36,23 +36,11 @@ public class CommandAckHandler implements IMessageHandler {
     }
     
     private void sendAck(BufferedWriter out, int frame) throws IOException {
-        synchronized (out) {
-            out.write("CMD_ACK:" + frame);
-            out.write("\n");
-            out.flush();
-        }
+        server.Server.sendSafe(out, ProtocolConstants.buildCmdAckMessage(frame));
     }
     
     private int extractFrame(String msg) {
-        // Extract frame number from "COMMAND:frame" format
-        int colonIdx = msg.lastIndexOf(':');
-        if (colonIdx > 0) {
-            try {
-                return Integer.parseInt(msg.substring(colonIdx + 1).trim());
-            } catch (NumberFormatException e) {
-                // No valid frame number
-            }
-        }
-        return -1;
+        // Use type-safe message parser
+        return ProtocolConstants.parseCmdAckMessage(msg);
     }
 }

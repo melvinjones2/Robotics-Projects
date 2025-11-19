@@ -1,5 +1,6 @@
 package client.network;
 
+import common.ProtocolConstants;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,7 +23,8 @@ public class HeartbeatThread implements Runnable {
     public void run() {
         while (running.get()) {
             try {
-                out.write("TICK:" + frameCount + "\n");
+                // Use type-safe message builder
+                out.write(ProtocolConstants.buildTickMessage(frameCount) + "\n");
                 out.flush();
                 frameCount++;
                 Thread.sleep(intervalMs);

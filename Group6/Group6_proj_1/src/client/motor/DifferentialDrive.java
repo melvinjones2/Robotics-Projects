@@ -4,10 +4,11 @@ import client.config.RobotConfig;
 import lejos.hardware.motor.BaseRegulatedMotor;
 
 /**
- * Utility wrapper for the left/right drive motors.
- * Centralises conversions between robot angles/distances and motor tacho counts.
+ * Differential drive implementation for two-wheeled robots.
+ * Centralizes conversions between robot angles/distances and motor tacho counts.
+ * Implements IDriveController for standardized drive control.
  */
-public class DifferentialDrive {
+public class DifferentialDrive implements IDriveController {
 
     private final BaseRegulatedMotor leftMotor;
     private final BaseRegulatedMotor rightMotor;
@@ -131,6 +132,7 @@ public class DifferentialDrive {
             return (leftMotor != null && leftMotor.isMoving()) ||
                    (rightMotor != null && rightMotor.isMoving());
         } catch (Exception e) {
+            // Motor query failed - assume stopped
             return false;
         }
     }
@@ -144,7 +146,7 @@ public class DifferentialDrive {
                 rightMotor.setSpeed(speed);
             }
         } catch (Exception e) {
-            // Ignore speed errors
+            // Speed setting failed - motor will use previous speed
         }
     }
 
@@ -153,13 +155,19 @@ public class DifferentialDrive {
             try {
                 motor.stop(true);
             } catch (Exception e) {
-                // Ignore stop errors
+                // Motor already stopped or hardware error - safe to ignore
             }
         }
     }
 
-    public static int clampSpeed(int speed) {
+    @Override
+    public int clampSpeed(int speed) {
         return Math.max(RobotConfig.MIN_MOTOR_SPEED, Math.min(RobotConfig.MAX_MOTOR_SPEED, speed));
+    }
+    
+    @Override
+    public String getName() {
+        return "Drive";
     }
 
     private static int toRotationDegrees(int robotDegrees) {

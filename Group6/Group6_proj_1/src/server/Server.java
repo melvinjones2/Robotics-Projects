@@ -1,10 +1,10 @@
 package server;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import server.client.ClientHandler;
 import server.gui.ServerGUI;
 import server.logging.LogLevel;
@@ -47,6 +47,23 @@ public class Server {
         out.write(line);
         out.write("\n");
         out.flush();
+        LogManager.debug("[you] " + line);
+    }
+    
+    /**
+     * Thread-safe message sending.
+     * Use this when multiple threads might write to the same BufferedWriter.
+     * 
+     * @param out The output stream to write to
+     * @param line The message line to send (newline will be added)
+     * @throws IOException If write/flush fails
+     */
+    public static void sendSafe(BufferedWriter out, String line) throws IOException {
+        synchronized (out) {
+            out.write(line);
+            out.write("\n");
+            out.flush();
+        }
         LogManager.debug("[you] " + line);
     }
 

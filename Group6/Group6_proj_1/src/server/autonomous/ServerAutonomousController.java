@@ -1,5 +1,7 @@
 package server.autonomous;
 
+import common.ProtocolConstants;
+import common.SensorData;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,24 +24,21 @@ public class ServerAutonomousController {
     }
     
     public void parseSensorMessage(String message) {
-        if (message == null || !message.startsWith("SENSOR:")) {
-            return;
+        // Use type-safe message parser
+        SensorData data = ProtocolConstants.parseSensorMessage(message);
+        
+        // Debug: log if no sensors parsed
+        boolean hasSensors = false;
+        for (String sensorName : data.getSensorNames()) {
+            hasSensors = true;
+            Float value = data.get(sensorName);
+            if (value != null) {
+                updateSensor(sensorName, value);
+            }
         }
         
-        String data = message.substring(7); // Remove "SENSOR:" prefix
-        String[] sensors = data.split(",");
-        
-        for (String sensor : sensors) {
-            String[] parts = sensor.split("=");
-            if (parts.length == 2) {
-                try {
-                    String name = parts[0].trim();
-                    float value = Float.parseFloat(parts[1].trim());
-                    updateSensor(name, value);
-                } catch (NumberFormatException e) {
-                    // Ignore invalid sensor data
-                }
-            }
+        if (!hasSensors) {
+            System.err.println("WARNING: No sensors parsed from message: " + message);
         }
     }
     
