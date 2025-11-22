@@ -7,16 +7,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import static shared.Constants.*;
 
 public class SocketConnection implements AutoCloseable {
-    
-    public static final String DEFAULT_HOST = "10.0.1.8";
-    public static final int DEFAULT_PORT = 9999;
-    public static final int DEFAULT_TIMEOUT_MS = 10000;
-    
-    private static final String LOG_PREFIX = "[LOG]";
-    
-    private Socket socket;
+    private final Socket socket;
     private final BufferedReader reader;
     private final BufferedWriter writer;
     
@@ -27,7 +21,7 @@ public class SocketConnection implements AutoCloseable {
     }
     
     public static SocketConnection createClient() throws IOException {
-        return createClient(DEFAULT_HOST, DEFAULT_PORT, DEFAULT_TIMEOUT_MS);
+        return createClient(DEFAULT_HOST, DEFAULT_PORT, 30000);
     }
     
     public static SocketConnection createServer(int port) throws IOException {
