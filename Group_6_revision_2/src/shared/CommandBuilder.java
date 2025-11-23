@@ -14,6 +14,15 @@ public class CommandBuilder {
 	public static final String NAV_GOTO = "NAV_GOTO";         // Navigate to X,Y coordinate
 	public static final String NAV_DYNAMIC = "NAV_DYNAMIC";   // Dynamic obstacle avoidance
 	
+	// Ball tracking commands
+	public static final String FIND_BALL = "FIND_BALL";       // Scan and locate ball
+	public static final String APPROACH_BALL = "APPROACH_BALL"; // Move toward ball
+	public static final String TRACK_BALL = "TRACK_BALL";     // Continuously track ball
+	
+	// Safety commands
+	public static final String EMERGENCY_STOP = "EMERGENCY_STOP"; // Override all and stop
+	public static final String CLEAR_STOP = "CLEAR_STOP";         // Clear emergency stop
+	
 	// Build command with single parameter
 	public static String build(String command, double value) {
 		return command + " " + value;

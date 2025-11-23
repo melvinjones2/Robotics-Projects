@@ -16,17 +16,22 @@ public class SocketConnection implements AutoCloseable {
     
     public static SocketConnection createClient(String host, int port, int timeoutMs) throws IOException {
         Socket socket = new Socket(host, port);
-        socket.setSoTimeout(timeoutMs);
+        if (timeoutMs > 0) {
+            socket.setSoTimeout(timeoutMs);
+        }
         return new SocketConnection(socket);
     }
     
     public static SocketConnection createClient() throws IOException {
-        return createClient(DEFAULT_HOST, DEFAULT_PORT, 30000);
+        // No timeout - client waits indefinitely for commands
+        return createClient(DEFAULT_HOST, DEFAULT_PORT, 0);
     }
     
     public static SocketConnection createServer(int port) throws IOException {
         Socket clientSocket;
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
+        try (ServerSocket serverSocket = new ServerSocket()) {
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new java.net.InetSocketAddress(port));
             clientSocket = serverSocket.accept();
         }
         return new SocketConnection(clientSocket);

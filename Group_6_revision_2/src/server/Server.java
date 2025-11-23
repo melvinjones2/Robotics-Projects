@@ -8,7 +8,13 @@ import shared.SocketConnection;
 public class Server {
 	public static void main(String[] args)
 	{
-		startServer();
+		// Check if CLI mode is requested
+		if (args.length > 0 && args[0].equals("--cli")) {
+			startServer();
+		} else {
+			// Default to GUI
+			ServerGUI.main(args);
+		}
 	}
 
 	private static void startServer() {

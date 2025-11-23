@@ -7,18 +7,37 @@ import lejos.robotics.navigation.MovePilot;
 
 public class CommandHandler {
 	private static NavigationController navController;
+	private static BallTracker ballTracker;
+	private static SafetyMonitor safetyMonitor;
 	
 	public static void setNavigationController(NavigationController controller) {
 		navController = controller;
 	}
 	
+	public static void setBallTracker(BallTracker tracker) {
+		ballTracker = tracker;
+	}
+	
+	public static void setSafetyMonitor(SafetyMonitor monitor) {
+		safetyMonitor = monitor;
+	}
+	
 	public static void handleCommand(String commandString, MovePilot pilot, SocketConnection connection) {
-		try {
-			String cmd = CommandBuilder.getCommand(commandString);
-			if (cmd.isEmpty()) {
-				return;
-			}
-			
+			try {
+				String cmd = CommandBuilder.getCommand(commandString);
+				if (cmd.isEmpty()) {
+					return;
+				}
+				
+				// Check if emergency stop is active (except for emergency stop commands)
+				if (safetyMonitor != null && safetyMonitor.isEmergencyStopped() && 
+					!cmd.equals(CommandBuilder.EMERGENCY_STOP) && 
+					!cmd.equals(CommandBuilder.CLEAR_STOP) &&
+					!cmd.equals(CommandBuilder.STOP)) {
+					connection.sendLine("ERROR: Emergency stop active. Send CLEAR_STOP first.");
+					return;
+				}
+				
 			switch (cmd) {
 				case CommandBuilder.MOVE:
 					Double distance = CommandBuilder.getParameterAsDouble(commandString, 0);
@@ -107,6 +126,48 @@ public class CommandHandler {
 						connection.sendLog("Dynamic navigation complete");
 					} else {
 						connection.sendLine("ERROR: NAV_DYNAMIC requires distance parameter");
+					}
+					break;
+					
+				case CommandBuilder.FIND_BALL:
+					if (ballTracker == null) {
+						connection.sendLine("ERROR: Ball tracker not initialized");
+						break;
+					}
+					connection.sendLine("OK");
+					connection.sendLog("Searching for ball...");
+					boolean found = ballTracker.findAndApproachBall();
+					if (found) {
+						connection.sendLog("Ball found and approached");
+					} else {
+						connection.sendLog("Ball not found");
+					}
+					break;
+					
+				case CommandBuilder.APPROACH_BALL:
+					if (ballTracker == null) {
+						connection.sendLine("ERROR: Ball tracker not initialized");
+						break;
+					}
+					connection.sendLine("OK");
+					connection.sendLog("Approaching ball...");
+					ballTracker.approachBall();
+					connection.sendLog("Approach complete");
+					break;
+					
+				case CommandBuilder.TRACK_BALL:
+					if (ballTracker == null) {
+						connection.sendLine("ERROR: Ball tracker not initialized");
+						break;
+					}
+					Double duration = CommandBuilder.getParameterAsDouble(commandString, 0);
+					if (duration != null) {
+						connection.sendLine("OK");
+						connection.sendLog("Tracking ball for " + duration + " seconds");
+						ballTracker.trackBall(duration.intValue());
+						connection.sendLog("Tracking complete");
+					} else {
+						connection.sendLine("ERROR: TRACK_BALL requires duration parameter");
 					}
 					break;
 					

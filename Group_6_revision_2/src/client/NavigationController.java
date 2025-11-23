@@ -11,24 +11,17 @@ import java.io.IOException;
 public class NavigationController {
 	private MovePilot pilot;
 	private Navigator navigator;
-	private EV3UltrasonicSensor ultrasonicSensor;
+	private SensorDataCollection sensorData;
 	private SocketConnection connection;
-	private SampleProvider distanceProvider;
-	private float[] sample;
 	
 	private static final double OBSTACLE_THRESHOLD = 20.0; // cm
 	private static final double SAFE_DISTANCE = 30.0; // cm
 	
-	public NavigationController(MovePilot pilot, EV3UltrasonicSensor ultrasonicSensor, SocketConnection connection) {
+	public NavigationController(MovePilot pilot, SensorDataCollection sensorData, SocketConnection connection) {
 		this.pilot = pilot;
 		this.navigator = new Navigator(pilot);
-		this.ultrasonicSensor = ultrasonicSensor;
+		this.sensorData = sensorData;
 		this.connection = connection;
-		
-		if (ultrasonicSensor != null) {
-			this.distanceProvider = ultrasonicSensor.getDistanceMode();
-			this.sample = new float[distanceProvider.sampleSize()];
-		}
 	}
 	
 	// Strategy 1: Simple Obstacle Avoidance
@@ -155,21 +148,13 @@ public class NavigationController {
 		return 0; // Already rotated to best angle
 	}
 	
-	// Get distance from ultrasonic sensor
+	// Get distance from sensor data collection
 	private double getDistance() {
-		if (distanceProvider == null) {
+		if (sensorData == null) {
 			return 100; // Default safe distance if no sensor
 		}
 		
-		distanceProvider.fetchSample(sample, 0);
-		float distance = sample[0] * 100; // Convert meters to cm
-		
-		// Handle invalid readings
-		if (Float.isInfinite(distance) || distance > 255) {
-			return 255; // Max sensor range
-		}
-		
-		return distance;
+		return sensorData.getBestDistance();
 	}
 	
 	// Get Navigator for advanced use
