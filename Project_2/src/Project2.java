@@ -1,5 +1,15 @@
 import java.util.ArrayList;
-
+import lejos.hardware.Button;
+import lejos.hardware.motor.EV3MediumRegulatedMotor;
+import lejos.hardware.motor.EV3LargeRegulatedMotor;
+import lejos.hardware.motor.Motor;
+import lejos.hardware.port.MotorPort;
+import lejos.hardware.port.SensorPort;
+import lejos.hardware.sensor.EV3GyroSensor;
+import lejos.hardware.sensor.EV3IRSensor;
+import lejos.hardware.sensor.EV3UltrasonicSensor;
+import lejos.hardware.sensor.NXTUltrasonicSensor;
+import lejos.robotics.RegulatedMotor;
 import lejos.robotics.geometry.Line;
 import lejos.robotics.geometry.Rectangle;
 import lejos.robotics.mapping.LineMap;
@@ -10,10 +20,9 @@ import lejos.robotics.navigation.Pose;
 import lejos.robotics.navigation.Waypoint;
 import lejos.robotics.pathfinding.Path;
 import lejos.robotics.pathfinding.ShortestPathFinder;
-import lejos.hardware.motor.*;
-import lejos.hardware.sensor.*;
-import lejos.hardware.port.*;
+import lejos.hardware.Button;
 import lejos.robotics.SampleProvider;
+import lejos.robotics.RegulatedMotor;
 
 public class Project2 {
 	
@@ -24,6 +33,13 @@ public class Project2 {
 	private SampleProvider ev3Distance;
 	private SampleProvider nxtDistance;
 	private SampleProvider gyroAngle;
+	
+	// Actuators & Additional Sensors
+	private EV3MediumRegulatedMotor armMotor; // Port A
+	private RegulatedMotor leftMotor;
+	private RegulatedMotor rightMotor;
+	private EV3IRSensor irSensor; // Port S1
+	private SampleProvider irDistanceMode;
 	
 	// Robot configuration
 	private DifferentialPilot pilot;
@@ -36,11 +52,6 @@ public class Project2 {
 	private static final float BALL_DETECTION_DISTANCE = 30.0f; // cm - distance to ball (low sensor) - increased from 15
 	private static final float SCAN_ANGLE_STEP = 15.0f; // degrees to rotate during scan
 	private static final float OBSTACLE_PADDING = 10.0f; // cm - buffer around obstacles
-	
-	public static void main(String[] args) {
-		Project2 robot = new Project2();
-		robot.run();
-	}
 	
 	public Project2() {
 		// Initialize sensors - matching Client.java setup
@@ -70,6 +81,17 @@ public class Project2 {
 			gyroAngle = null;
 		}
 		
+		// Initialize Arm Motor
+		armMotor = new EV3MediumRegulatedMotor(MotorPort.A);
+		
+		// Initialize IR Sensor
+		try {
+			irSensor = new EV3IRSensor(SensorPort.S1);
+			irDistanceMode = irSensor.getDistanceMode();
+		} catch (Exception e) {
+			System.out.println("Warning: IR Sensor not found on S1");
+		}
+		
 		// Initialize obstacle list
 		obstacleLines = new ArrayList<>();
 		
@@ -80,7 +102,11 @@ public class Project2 {
 		double diam = DifferentialPilot.WHEEL_SIZE_NXT1;  // change this accordingly, unit is cm
 		double trackWidth = 15.5; // change this accordingly, unit is cm
 		
-		pilot = new DifferentialPilot(diam, trackWidth, Motor.B, Motor.C);
+		// Use EV3LargeRegulatedMotor directly to avoid conflict with static Motor class
+		leftMotor = new EV3LargeRegulatedMotor(MotorPort.B);
+		rightMotor = new EV3LargeRegulatedMotor(MotorPort.C);
+		
+		pilot = new DifferentialPilot(diam, trackWidth, leftMotor, rightMotor);
 		pilot.setLinearSpeed(6);	// 6 cm/s for linear movement
 		pilot.setAngularSpeed(15);	// 15 degree/s for rotation in place
 		pilot.setLinearAcceleration(200);	// gradually increase to the desired linear speed
@@ -88,16 +114,29 @@ public class Project2 {
 		nav = new Navigator(pilot);
 	}
 	
+	// Goal Coordinates (Based on 143x115 map)
+	// Blue Goal (Left side) - Target for Green Team
+	private static final Waypoint BLUE_GOAL = new Waypoint(15.0f, 57.5f); 
+	// Green Goal (Right side) - Target for Blue Team
+	private static final Waypoint GREEN_GOAL = new Waypoint(128.0f, 57.5f);
+	
+	private boolean isBlueTeam = true; // Default to Blue team
+
+	public static void main(String[] args) {
+		Project2 robot = new Project2();
+		robot.run();
+	}
+	
 	public void run() {
 		try {
-			System.out.println("Starting obstacle detection and ball search...");
-			System.out.println("Press any button to start...");
+			// 0. Setup and Team Selection
+			selectTeam();
 			
-			// Wait for button press to start
-			lejos.hardware.Button.waitForAnyPress();
+			System.out.println("Ready to Start!");
+			System.out.println("Press ENTER to GO");
+			Button.ENTER.waitForPress();
 			
-			// Phase 1: Scan for both obstacles and ball
-			System.out.println("Scanning for obstacles and ball...");
+			// Phase 1: Scan
 			Waypoint ballLocation = scanEnvironmentAndFindBall();
 			
 			if (ballLocation == null) {
@@ -113,7 +152,21 @@ public class Project2 {
 			
 			// Phase 3: Plan path and navigate to the ball
 			System.out.println("Planning path to ball...");
-			navigateWithPathPlanning(ballLocation);
+			boolean reachedBall = navigateWithPathPlanning(ballLocation, true);
+			
+			if (reachedBall) {
+				// Phase 4: Capture Ball
+				captureBall();
+				
+				// Phase 5: Deliver to Goal
+				Waypoint goal = isBlueTeam ? GREEN_GOAL : BLUE_GOAL;
+				System.out.println("Delivering to " + (isBlueTeam ? "GREEN" : "BLUE") + " goal...");
+				deliverBallToGoal(goal);
+				
+				// Phase 6: Release
+				releaseBall();
+				System.out.println("GOAL SCORED!");
+			}
 			
 			System.out.println("Mission complete!");
 			
@@ -124,45 +177,24 @@ public class Project2 {
 		}
 	}
 	
-	/**
-	 * Scan environment in 360 degrees to detect obstacles
-	 */
-	private void scanEnvironment() {
-		Pose currentPose = nav.getPoseProvider().getPose();
-		float startAngle = currentPose.getHeading();
+	private void selectTeam() {
+		System.out.println("Select Team:");
+		System.out.println("UP: Blue Team");
+		System.out.println("DOWN: Green Team");
 		
-		// Perform 360-degree scan
-		for (float angle = 0; angle < 360; angle += SCAN_ANGLE_STEP) {
-			pilot.rotate(SCAN_ANGLE_STEP);
-			
-			float distance = getEV3Distance(); // Use high sensor for obstacles
-			
-			// If obstacle detected within threshold
-			if (distance < OBSTACLE_DISTANCE && distance > 0) {
-				// Get current position and heading
-				Pose pose = nav.getPoseProvider().getPose();
-				
-				// Calculate obstacle position
-				float obstacleX = pose.getX() + distance * (float)Math.cos(Math.toRadians(pose.getHeading()));
-				float obstacleY = pose.getY() + distance * (float)Math.sin(Math.toRadians(pose.getHeading()));
-				
-				// Add obstacle as a square around the detected point
-				addObstacleToMap(obstacleX, obstacleY);
-				
-				System.out.println("Obstacle detected at (" + Math.round(obstacleX) + ", " + Math.round(obstacleY) + ")");
-			}
-			
-			try {
-				Thread.sleep(100); // Brief pause for sensor stabilization
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		int button = Button.waitForAnyPress();
+		if (button == Button.ID_DOWN) {
+			isBlueTeam = false;
+			System.out.println("Team: GREEN");
+			System.out.println("Target: BLUE Goal");
+		} else {
+			isBlueTeam = true;
+			System.out.println("Team: BLUE");
+			System.out.println("Target: GREEN Goal");
 		}
-		
-		// Return to original heading
-		pilot.rotate(startAngle - nav.getPoseProvider().getPose().getHeading());
+		try { Thread.sleep(1000); } catch (Exception e) {}
 	}
-	
+
 	/**
 	 * Scan 360 degrees to detect obstacles and find the ball
 	 * Obstacles: High sensor detects them
@@ -239,7 +271,8 @@ public class Project2 {
 			
 			// Ball detection: Low sensor sees something BUT high sensor doesn't see it (or sees it much farther)
 			// This means the object is low to the ground = likely the ball!
-			if (lowDistance > 2 && lowDistance < 250) { // Low sensor detects something
+			if (lowDistance > 2 && lowDistance < 250) // Low sensor detects something
+			{
 				// High sensor should NOT detect it at the same or closer distance
 				if (highDistance > lowDistance + 10 || highDistance > 100) {
 					System.out.println("  -> BALL detected by LOW sensor only!");
@@ -288,24 +321,31 @@ public class Project2 {
 	}
 	
 	/**
-	 * Navigate to ball using path planning to avoid obstacles
+	 * Navigate to destination using path planning to avoid obstacles
+	 * @param destination Target location
+	 * @param trackBall If true, use ball tracking for final approach. If false, just go to coordinates.
+	 * @return true if navigation completed
 	 */
-	private void navigateWithPathPlanning(Waypoint ballLocation) {
+	private boolean navigateWithPathPlanning(Waypoint destination, boolean trackBall) {
 		ShortestPathFinder pathPlanner = new ShortestPathFinder(currentMap);
 		
 		try {
 			Pose startPose = nav.getPoseProvider().getPose();
 			System.out.println("Current position: (" + String.format("%.1f", startPose.getX()) + ", " + 
 						   String.format("%.1f", startPose.getY()) + ")");
-			System.out.println("Ball position: (" + String.format("%.1f", ballLocation.x) + ", " + 
-						   String.format("%.1f", ballLocation.y) + ")");
+			System.out.println("Target: (" + String.format("%.1f", destination.x) + ", " + 
+						   String.format("%.1f", destination.y) + ")");
 			
-			Path path = pathPlanner.findRoute(startPose, ballLocation);
+			Path path = pathPlanner.findRoute(startPose, destination);
 			
 			if (path == null || path.isEmpty()) {
 				System.out.println("No path found! Trying direct approach...");
-				navigateDirectToBall(ballLocation);
-				return;
+				if (trackBall) {
+					navigateDirectToBall(destination);
+				} else {
+					navigateToWaypoint(destination);
+				}
+				return true;
 			}
 			
 			System.out.println("Path found with " + path.size() + " waypoints");
@@ -317,18 +357,24 @@ public class Project2 {
 							   String.format("%.1f", wp.x) + ", " + String.format("%.1f", wp.y) + ")");
 				
 				// Navigate to this waypoint
-				if (i < path.size() - 1) {
-					// Intermediate waypoint - go directly
+				if (i < path.size() - 1 || !trackBall) {
+					// Intermediate waypoint OR final waypoint if not tracking ball - go directly
 					navigateToWaypoint(wp);
 				} else {
-					// Final waypoint (the ball) - use ball tracking
+					// Final waypoint AND tracking ball - use ball tracking
 					navigateDirectToBall(wp);
 				}
 			}
+			return true;
 			
 		} catch (DestinationUnreachableException e) {
 			System.out.println("Destination unreachable! Trying direct approach...");
-			navigateDirectToBall(ballLocation);
+			if (trackBall) {
+				navigateDirectToBall(destination);
+			} else {
+				navigateToWaypoint(destination);
+			}
+			return true;
 		}
 	}
 	
@@ -424,7 +470,8 @@ public class Project2 {
 					lostBallCount = 0;
 					
 					// Stop if we're close enough to the ball
-					if (lowDistance < 10) {
+					// Increased stop distance to 15cm to prevent pushing the ball
+					if (lowDistance < 15) {
 						pilot.stop();
 						System.out.println("*** REACHED BALL! Stopping at " + String.format("%.1f", lowDistance) + " cm ***");
 						break;
@@ -629,6 +676,90 @@ public class Project2 {
 			}
 		}
 	}
+
+	/**
+	 * Drive forward to capture the ball using IR sensor and Arm
+	 */
+	private void captureBall() {
+		System.out.println("Capturing ball...");
+		
+		// We are currently ~15cm away from the ball
+		pilot.setLinearSpeed(3); // Very slow for capture
+		pilot.forward();
+		
+		// Use tacho count to estimate distance traveled since pilot.getMovement() might not be available
+		int startTacho = leftMotor.getTachoCount();
+		// Approx 20.5 degrees per cm for NXT wheels
+		float degreesPerCm = 20.5f; 
+		
+		boolean armLifted = false;
+		
+		while (pilot.isMoving()) {
+			int currentTacho = leftMotor.getTachoCount();
+			float distanceTraveled = Math.abs(currentTacho - startTacho) / degreesPerCm;
+			
+			// Check IR Sensor
+			float irDist = getIRDistance();
+			
+			// 1. Start lifting arm when we are ~10cm away (we started at 15, so after 5cm travel)
+			if (!armLifted && distanceTraveled >= 5.0f) {
+				System.out.println("Lifting arm...");
+				// Rotate arm to lift (adjust angle as needed, assuming 90 degrees lifts it)
+				armMotor.rotate(90, true); // Async return
+				armLifted = true;
+			}
+			
+			// 2. Stop if IR detects ball (close proximity) or we traveled too far
+			// IR distance is usually arbitrary units or cm. Assuming cm for EV3 IR.
+			// "touches the ball" -> very small value.
+			if (irDist < 5.0f) { // Ball detected underneath/close
+				System.out.println("IR detected ball! Stopping.");
+				break;
+			}
+			
+			// Safety: Stop if we traveled the requested ~10cm (plus small buffer) without IR detection
+			if (distanceTraveled > 12.0f) { 
+				System.out.println("IR not detected. Stopping at max distance (12cm).");
+				break;
+			}
+			
+			try { Thread.sleep(10); } catch (Exception e) {}
+		}
+		
+		pilot.stop();
+		// Ensure arm is fully up if not already
+		if (!armLifted) {
+			armMotor.rotate(90, false);
+		}
+	}
+
+	/**
+	 * Navigate to the goal area
+	 */
+	private void deliverBallToGoal(Waypoint goal) {
+		// Reuse path planning to get to the goal
+		navigateWithPathPlanning(goal, false);
+	}
+
+	/**
+	 * Release the ball at the goal
+	 */
+	private void releaseBall() {
+		System.out.println("Releasing ball...");
+		// Lower the arm to release
+		armMotor.rotate(-90);
+		
+		// Back up
+		pilot.setLinearSpeed(20);
+		pilot.travel(-20); // Back up 20cm
+	}
+	
+	private float getIRDistance() {
+		if (irDistanceMode == null) return 255;
+		float[] sample = new float[irDistanceMode.sampleSize()];
+		irDistanceMode.fetchSample(sample, 0);
+		return sample[0];
+	}
 	
 	/**
 	 * Cleanup resources
@@ -642,6 +773,18 @@ public class Project2 {
 		}
 		if (gyroSensor != null) {
 			gyroSensor.close();
+		}
+		if (irSensor != null) {
+			irSensor.close();
+		}
+		if (armMotor != null) {
+			armMotor.close();
+		}
+		if (leftMotor != null) {
+			leftMotor.close();
+		}
+		if (rightMotor != null) {
+			rightMotor.close();
 		}
 		System.out.println("Sensors closed.");
 	}
