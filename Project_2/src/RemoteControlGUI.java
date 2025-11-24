@@ -108,15 +108,18 @@ public class RemoteControlGUI extends JFrame {
         final JButton btnKick = createStyledButton("KICK (K)");
         final JButton btnArmUp = createStyledButton("ARM UP (U)");
         final JButton btnArmDown = createStyledButton("ARM DOWN (J)");
+        final JButton btnEnter = createStyledButton("ENTER (Ent)");
         final JButton btnExit = createStyledButton("EXIT APP (Esc)");
         
         btnKick.setBackground(new Color(255, 100, 100)); // Reddish
+        btnEnter.setBackground(new Color(100, 255, 100)); // Greenish
         btnExit.setBackground(Color.RED);
         btnExit.setForeground(Color.WHITE);
         
         actionPanel.add(btnKick);
         actionPanel.add(btnArmUp);
         actionPanel.add(btnArmDown);
+        actionPanel.add(btnEnter);
         actionPanel.add(btnExit);
         
         centerPanel.add(actionPanel, BorderLayout.SOUTH);
@@ -173,6 +176,14 @@ public class RemoteControlGUI extends JFrame {
             }
         });
         
+        btnEnter.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                sendCommand("ENTER");
+                requestFocus();
+            }
+        });
+        
         btnExit.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -191,6 +202,10 @@ public class RemoteControlGUI extends JFrame {
                 if (!isConnected) return;
                 
                 switch (e.getKeyCode()) {
+                    case KeyEvent.VK_ENTER:
+                        sendCommand("ENTER");
+                        btnEnter.doClick(100);
+                        break;
                     case KeyEvent.VK_ESCAPE:
                         sendCommand("EXIT");
                         btnExit.doClick(100);

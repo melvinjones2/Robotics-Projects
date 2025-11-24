@@ -20,14 +20,20 @@ public class RemoteControl extends Thread {
             serverSocket.setSoTimeout(2000); // Check running flag every 2 seconds
             System.out.println("Remote Control: Server started on port " + port);
 
+            boolean waitingPrinted = false;
+
             while (running) {
                 try {
                     if (clientSocket == null || clientSocket.isClosed()) {
                         try {
-                            System.out.println("Remote Control: Waiting for client...");
+                            if (!waitingPrinted) {
+                                System.out.println("Remote Control: Waiting for client...");
+                                waitingPrinted = true;
+                            }
                             clientSocket = serverSocket.accept();
                             System.out.println("Remote Control: Client connected: " + clientSocket.getInetAddress());
                             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                            waitingPrinted = false; // Reset for next disconnection
                         } catch (SocketTimeoutException e) {
                             continue; // Loop back to check running flag
                         }

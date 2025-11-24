@@ -29,6 +29,8 @@ public class Project2 {
 	private static final float FIELD_WIDTH = 143.0f;
 	private static final float FIELD_HEIGHT = 115.0f;
 	private static final float GOAL_Y = 57.5f;
+	private static final float BLUE_START_Y = 20.0f;
+	private static final float GREEN_START_Y = 95.0f;
 	private static final float BLUE_START_X = 20.0f;
 	private static final float GREEN_START_X = 123.0f;
 	
@@ -68,24 +70,21 @@ public class Project2 {
 			// 0. Setup and Team Selection
 			selectTeamAndRole();
 			
-			// Dynamic Localization
-			localize();
-			
 			long gameEndTime = System.currentTimeMillis() + 5 * 60 * 1000; // 5 minutes
 			
 			while (System.currentTimeMillis() < gameEndTime) {
 				System.out.println("--- NEW CYCLE ---");
-				System.out.println("Reposition Robot & Press ENTER");
-				Button.ENTER.waitForPress();
+				System.out.println("Reposition Robot & Press ENTER (or GUI Enter)");
+				waitForStartSignal();
 				
 				// Reset Map and Pose for new cycle
 				obstacleLines.clear();
 				currentMap = initializeBaseMap();
 				
 				if (isBlueTeam) {
-					robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, GOAL_Y, 0.0f));
+					robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, BLUE_START_Y, 0.0f));
 				} else {
-					robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GOAL_Y, 180.0f));
+					robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GREEN_START_Y, 180.0f));
 				}
 				System.out.println("State Reset.");
 				
@@ -108,6 +107,7 @@ public class Project2 {
 		} catch (RuntimeException e) {
 			if (e.getMessage().equals("Game aborted by user")) {
 				System.out.println("Game aborted by user (ESCAPE pressed).");
+				System.exit(0);
 			} else {
 				e.printStackTrace();
 			}
@@ -115,6 +115,32 @@ public class Project2 {
 			e.printStackTrace();
 		} finally {
 			cleanup();
+		}
+	}
+	
+	private void waitForStartSignal() {
+		while (true) {
+			if (Button.ENTER.isDown()) {
+				while(Button.ENTER.isDown()) sleep(10); // Wait for release
+				break;
+			}
+			
+			if (remoteControl != null) {
+				String cmd = remoteControl.getCommand();
+				if (cmd.equals("ENTER")) {
+					remoteControl.clearCommand();
+					break;
+				}
+				if (cmd.equals("EXIT")) {
+					throw new RuntimeException("Game aborted by user");
+				}
+			}
+			
+			if (Button.ESCAPE.isDown()) {
+				throw new RuntimeException("Game aborted by user");
+			}
+			
+			sleep(100);
 		}
 	}
 	
@@ -149,8 +175,18 @@ public class Project2 {
 				
 				float obstacleDist = robot.getEV3Distance();
 				
-				if (cmd.equals("FORWARD") && obstacleDist < 20) {
+				// Asimov's First Law: A robot may not allow harm to come to itself (or the wall)
+				if (cmd.equals("FORWARD") && obstacleDist < 25) {
 					stop();
+					System.out.println("First Law Violation: Collision Imminent! Stopping.");
+					lejos.hardware.Sound.buzz();
+					sleep(500);
+					continue;
+				}
+				
+				if ((cmd.equals("LEFT") || cmd.equals("RIGHT")) && obstacleDist < 10) {
+					stop();
+					System.out.println("First Law Violation: Too close to turn safely!");
 					lejos.hardware.Sound.buzz();
 					sleep(500);
 					continue;
@@ -247,11 +283,11 @@ public class Project2 {
 		
 		// Set initial pose based on team
 		if (isBlueTeam) {
-			robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, GOAL_Y, 0.0f));
-			System.out.println("Start Pose: (" + BLUE_START_X + ", " + GOAL_Y + ", 0°)");
+			robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, BLUE_START_Y, 0.0f));
+			System.out.println("Start Pose: (" + BLUE_START_X + ", " + BLUE_START_Y + ", 0°)");
 		} else {
-			robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GOAL_Y, 180.0f));
-			System.out.println("Start Pose: (" + GREEN_START_X + ", " + GOAL_Y + ", 180°)");
+			robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GREEN_START_Y, 180.0f));
+			System.out.println("Start Pose: (" + GREEN_START_X + ", " + GREEN_START_Y + ", 180°)");
 		}
 		
 		try { Thread.sleep(500); } catch (Exception e) {}
@@ -289,6 +325,8 @@ public class Project2 {
 	
 	private void runOffense() {
 		System.out.println("OFFENSE STATE");
+		
+		playFightSong();
 		
 		// Phase 1: Scan
 		Waypoint ballLocation = scanEnvironmentAndFindBall();
@@ -345,6 +383,9 @@ public class Project2 {
 	
 	private void runDefense() {
 		System.out.println("DEFENSE STATE");
+		
+		playDefenseSong();
+		
 		System.out.println("Waiting 3 seconds...");
 		sleep(3000);
 		
@@ -380,6 +421,49 @@ public class Project2 {
 			
 			if (Button.ENTER.isDown()) break;
 		}
+	}
+	
+	private void playFightSong() {
+		new Thread(new Runnable() {
+			public void run() {
+				int[] freqs = { 
+					440, 440, 440, 440, 349, 523, 440, 349, 523, 440, // Intro
+					440, 440, 440, 440, 349, 523, 440, 349, 523, 440
+				};
+				int[] durations = { 
+					150, 150, 150, 450, 150, 150, 150, 150, 150, 450,
+					150, 150, 150, 450, 150, 150, 150, 150, 150, 450
+				};
+				
+				for(int i=0; i<freqs.length; i++) {
+					if (!isAutonomous) break; 
+					lejos.hardware.Sound.playTone(freqs[i], durations[i]);
+					try { Thread.sleep(durations[i] + 20); } catch(Exception e){}
+				}
+			}
+		}).start();
+	}
+	
+	private void playDefenseSong() {
+		new Thread(new Runnable() {
+			public void run() {
+				// Chocobo Theme (Final Fantasy)
+				int[] freqs = { 
+					349, 440, 523, 698, 659, 587, 523, // F A C F(hi) E D C
+					440, 392, 349, 392, 440, 392, 349, 330, 349 // A G F G A G F E F
+				};
+				int[] durations = { 
+					150, 150, 150, 300, 150, 150, 300,
+					150, 150, 150, 150, 150, 150, 150, 150, 450
+				};
+				
+				for(int i=0; i<freqs.length; i++) {
+					if (!isAutonomous) break; 
+					lejos.hardware.Sound.playTone(freqs[i], durations[i]);
+					try { Thread.sleep(durations[i] + 20); } catch(Exception e){}
+				}
+			}
+		}).start();
 	}
 	
 	private void interceptOpponent(Waypoint opponent) {
@@ -432,8 +516,7 @@ public class Project2 {
 			float highDistance = robot.getEV3Distance(); // Opponent/Wall
 			
 			Pose pose = robot.getNav().getPoseProvider().getPose();
-			float angleOffset = cumulativeAngle;
-			float headingRad = (float)Math.toRadians(pose.getHeading() + angleOffset);
+			float headingRad = (float)Math.toRadians(pose.getHeading());
 			
 			// 1. Check for Ball
 			if (lowDistance > 2 && lowDistance < 200) {
@@ -475,7 +558,7 @@ public class Project2 {
 	}
 
 	private Waypoint scanEnvironmentAndFindBall() {
-		System.out.println("Starting 360 degree scan...");
+		System.out.println("Starting 100 degree scan (Field Side)...");
 		System.out.println("Looking for obstacles (high sensor) and ball (low sensor)");
 		
 		Waypoint closestBall = null;
@@ -486,8 +569,11 @@ public class Project2 {
 		
 		float startAngle = robot.getGyroAngle();
 		float cumulativeAngle = 0;
+		// Scan towards the field (Left Turn / CCW)
+		// Blue (0 deg): Scan 0 to 100 (North)
+		// Green (180 deg): Scan 180 to 280 (South)
 		final float STEP_SIZE = 10.0f; 
-		final int TOTAL_STEPS = 36; 
+		final int TOTAL_STEPS = 10; // Scan 100 degrees total
 		
 		for (int step = 0; step < TOTAL_STEPS; step++) {
 			checkEscape();
@@ -500,7 +586,7 @@ public class Project2 {
 			float lowDistance = robot.getNXTDistance(); 
 			float highDistance = robot.getEV3Distance(); 
 			
-			System.out.println("Step " + (step+1) + "/36, Angle " + String.format("%.0f", cumulativeAngle) + 
+			System.out.println("Step " + (step+1) + "/" + TOTAL_STEPS + ", Angle " + String.format("%.0f", cumulativeAngle) + 
 				"° (Gyro: " + String.format("%.0f", currentAngle - startAngle) + 
 				"°): Low=" + String.format("%.1f", lowDistance) + 
 				"cm, High=" + String.format("%.1f", highDistance) + "cm");
@@ -514,24 +600,29 @@ public class Project2 {
 			// Ball detection
 			if (lowDistance > 2 && lowDistance < 250) {
 				if (highDistance > lowDistance + 10 || highDistance > 100) {
-					System.out.println("  -> BALL detected by LOW sensor only!");
 					
-					if (lowDistance < closestDistance) {
-						closestDistance = lowDistance;
-						ballHeading = currentAngle; 
-						Pose pose = robot.getNav().getPoseProvider().getPose();
-						float angleOffset = cumulativeAngle;
+					Pose pose = robot.getNav().getPoseProvider().getPose();
+					float ballX = pose.getX() + lowDistance * (float)Math.cos(Math.toRadians(pose.getHeading()));
+					float ballY = pose.getY() + lowDistance * (float)Math.sin(Math.toRadians(pose.getHeading()));
+					
+					// Filter out walls (objects outside or on boundary of field)
+					if (ballX < 8 || ballX > FIELD_WIDTH - 8 || ballY < 8 || ballY > FIELD_HEIGHT - 8) {
+						System.out.println("  -> Ignored object at (" + (int)ballX + ", " + (int)ballY + ") - Likely Wall");
+					} else {
+						System.out.println("  -> BALL detected by LOW sensor only!");
 						
-						float ballX = pose.getX() + lowDistance * (float)Math.cos(Math.toRadians(pose.getHeading() + angleOffset));
-						float ballY = pose.getY() + lowDistance * (float)Math.sin(Math.toRadians(pose.getHeading() + angleOffset));
-						
-						closestBall = new Waypoint(ballX, ballY);
-						System.out.println("  -> Closest ball so far: " + String.format("%.1f", closestDistance) + 
-							" cm at gyro angle " + String.format("%.0f", ballHeading) + " degrees");
+						if (lowDistance < closestDistance) {
+							closestDistance = lowDistance;
+							ballHeading = currentAngle; 
 							
-						if (lowDistance < 18.0f) {
-							System.out.println("Ball is very close! Stopping scan to avoid collision.");
-							break;
+							closestBall = new Waypoint(ballX, ballY);
+							System.out.println("  -> Closest ball so far: " + String.format("%.1f", closestDistance) + 
+								" cm at gyro angle " + String.format("%.0f", ballHeading) + " degrees");
+								
+							if (lowDistance < 18.0f) {
+								System.out.println("Ball is very close! Stopping scan to avoid collision.");
+								break;
+							}
 						}
 					}
 				}
@@ -680,7 +771,7 @@ public class Project2 {
 			System.out.println("Refined Obstacle: " + minDistance + "cm at " + angleAtMin + " degrees");
 			
 			Pose pose = robot.getNav().getPoseProvider().getPose();
-			float headingRad = (float)Math.toRadians(pose.getHeading() + angleAtMin);
+			float headingRad = (float)Math.toRadians(pose.getHeading());
 			
 			float obstacleX = pose.getX() + minDistance * (float)Math.cos(headingRad);
 			float obstacleY = pose.getY() + minDistance * (float)Math.sin(headingRad);
@@ -811,6 +902,18 @@ public class Project2 {
 			float highDistance = robot.getEV3Distance();
 			
 			boolean ballDetected = (lowDistance > 2 && lowDistance < 150);
+			
+			if (ballDetected) {
+				// Filter out walls during tracking
+				Pose pose = robot.getNav().getPoseProvider().getPose();
+				float ballX = pose.getX() + lowDistance * (float)Math.cos(Math.toRadians(pose.getHeading()));
+				float ballY = pose.getY() + lowDistance * (float)Math.sin(Math.toRadians(pose.getHeading()));
+				
+				if (ballY < 8 || ballY > FIELD_HEIGHT - 8 || ballX < 8 || ballX > FIELD_WIDTH - 8) {
+					// System.out.println("Ignoring wall at (" + (int)ballX + "," + (int)ballY + ")");
+					ballDetected = false;
+				}
+			}
 			
 			if (ballDetected) {
 				System.out.println("Tracking: Low=" + String.format("%.1f", lowDistance) + 
@@ -1010,45 +1113,6 @@ public class Project2 {
 		System.out.println("Resetting arm to DOWN position...");
 		robot.getArmMotor().rotate(-90);
 		isArmDown = true;
-	}
-
-	private void localize() {
-		System.out.println("Localizing Y-position...");
-		
-		rotateBy(-90);
-		sleep(200);
-		float distRight = robot.getEV3Distance();
-		System.out.println("Right: " + distRight + "cm");
-		
-		rotateBy(180);
-		sleep(200);
-		float distLeft = robot.getEV3Distance();
-		System.out.println("Left: " + distLeft + "cm");
-		
-		rotateBy(-90);
-		
-		float yPos = GOAL_Y; 
-		float xPos = isBlueTeam ? BLUE_START_X : GREEN_START_X; 
-		float robotRadius = 10.0f;
-		float fieldHeight = FIELD_HEIGHT;
-		
-		boolean validRight = distRight < fieldHeight;
-		boolean validLeft = distLeft < fieldHeight;
-		
-		if (validRight && validLeft) {
-			float yFromRight = isBlueTeam ? (distRight + robotRadius) : (fieldHeight - distRight - robotRadius);
-			float yFromLeft = isBlueTeam ? (fieldHeight - distLeft - robotRadius) : (distLeft + robotRadius);
-			
-			yPos = (yFromRight + yFromLeft) / 2.0f;
-		} else if (validRight) {
-			yPos = isBlueTeam ? (distRight + robotRadius) : (fieldHeight - distRight - robotRadius);
-		} else if (validLeft) {
-			yPos = isBlueTeam ? (fieldHeight - distLeft - robotRadius) : (distLeft + robotRadius);
-		}
-		
-		float heading = isBlueTeam ? 0.0f : 180.0f;
-		System.out.println("Localized: (" + String.format("%.1f", xPos) + ", " + String.format("%.1f", yPos) + ")");
-		robot.getNav().getPoseProvider().setPose(new Pose(xPos, yPos, heading));
 	}
 
 	private void sleep(long millis) {
