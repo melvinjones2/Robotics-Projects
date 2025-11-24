@@ -1,152 +1,95 @@
 import java.util.ArrayList;
+import lejos.hardware.Sound;
 import lejos.hardware.Button;
-import lejos.hardware.motor.EV3MediumRegulatedMotor;
+import lejos.robotics.navigation.DifferentialPilot;
+import lejos.robotics.navigation.Navigator;
 import lejos.hardware.motor.EV3LargeRegulatedMotor;
-import lejos.hardware.motor.Motor;
-import lejos.hardware.port.MotorPort;
-import lejos.hardware.port.SensorPort;
-import lejos.hardware.sensor.EV3GyroSensor;
-import lejos.hardware.sensor.EV3IRSensor;
-import lejos.hardware.sensor.EV3UltrasonicSensor;
-import lejos.hardware.sensor.NXTUltrasonicSensor;
-import lejos.robotics.RegulatedMotor;
+import lejos.hardware.motor.EV3MediumRegulatedMotor;
 import lejos.robotics.geometry.Line;
 import lejos.robotics.geometry.Rectangle;
 import lejos.robotics.mapping.LineMap;
 import lejos.robotics.navigation.DestinationUnreachableException;
-import lejos.robotics.navigation.DifferentialPilot;
-import lejos.robotics.navigation.Navigator;
 import lejos.robotics.navigation.Pose;
 import lejos.robotics.navigation.Waypoint;
 import lejos.robotics.pathfinding.Path;
 import lejos.robotics.pathfinding.ShortestPathFinder;
-import lejos.hardware.Button;
-import lejos.robotics.SampleProvider;
-import lejos.robotics.RegulatedMotor;
 
 public class Project2 {
 	
-	// Sensors - matching Client.java setup
-	private EV3UltrasonicSensor ev3UltrasonicSensor; // High sensor on S2 - obstacle avoidance
-	private NXTUltrasonicSensor nxtUltrasonicSensor; // Low sensor on S4 - ball detection
-	private EV3GyroSensor gyroSensor; // Gyro sensor on S3 - accurate rotation tracking
-	private SampleProvider ev3Distance;
-	private SampleProvider nxtDistance;
-	private SampleProvider gyroAngle;
-	
-	// Actuators & Additional Sensors
-	private EV3MediumRegulatedMotor armMotor; // Port A
-	private RegulatedMotor leftMotor;
-	private RegulatedMotor rightMotor;
-	private EV3IRSensor irSensor; // Port S1
-	private SampleProvider irDistanceMode;
-	
-	// Robot configuration
-	private DifferentialPilot pilot;
-	private Navigator nav;
+	private RobotController robot;
 	private ArrayList<Line> obstacleLines;
 	private LineMap currentMap;
 	
 	// Detection thresholds
 	private static final float OBSTACLE_DISTANCE = 20.0f; // cm - distance to detect obstacles (high sensor)
-	private static final float BALL_DETECTION_DISTANCE = 30.0f; // cm - distance to ball (low sensor) - increased from 15
-	private static final float SCAN_ANGLE_STEP = 15.0f; // degrees to rotate during scan
-	private static final float OBSTACLE_PADDING = 35.0f; // cm - increased to account for robot radius + obstacle radius
+	private static final float BALL_DETECTION_DISTANCE = 30.0f; // cm - distance to ball (low sensor)
+	private static final float OBSTACLE_PADDING = 35.0f; // cm
 	
-	public Project2() {
-		// Initialize sensors - matching Client.java setup
-		// EV3 Ultrasonic (high - obstacle avoidance) on S2
-		ev3UltrasonicSensor = new EV3UltrasonicSensor(SensorPort.S2);
-		ev3Distance = ev3UltrasonicSensor.getDistanceMode();
-		
-		// NXT Ultrasonic (low - ball detection) on S4
-		nxtUltrasonicSensor = new NXTUltrasonicSensor(SensorPort.S4);
-		nxtDistance = nxtUltrasonicSensor.getDistanceMode();
-		
-		// Gyro sensor on S3 - for accurate rotation
-		try {
-			gyroSensor = new EV3GyroSensor(SensorPort.S3);
-			gyroAngle = gyroSensor.getAngleMode();
-			System.out.println("Gyro initialized. Calibrating...");
-			try {
-				Thread.sleep(500); // Give sensor time to calibrate
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			gyroSensor.reset();
-			System.out.println("Gyro ready.");
-		} catch (Exception e) {
-			System.out.println("Warning: Gyro sensor failed to initialize: " + e.getMessage());
-			gyroSensor = null;
-			gyroAngle = null;
-		}
-		
-		// Initialize Arm Motor
-		armMotor = new EV3MediumRegulatedMotor(MotorPort.A);
-		
-		// Initialize IR Sensor
-		try {
-			irSensor = new EV3IRSensor(SensorPort.S1);
-			irDistanceMode = irSensor.getDistanceMode();
-		} catch (Exception e) {
-			System.out.println("Warning: IR Sensor not found on S1");
-		}
-		
-		// Initialize obstacle list
-		obstacleLines = new ArrayList<>();
-		
-		// Initialize map with play area boundaries
-		currentMap = initializeBaseMap();
-		
-		// Initialize robot motors
-		double diam = DifferentialPilot.WHEEL_SIZE_NXT1;  // change this accordingly, unit is cm
-		double trackWidth = 15.5; // change this accordingly, unit is cm
-		
-		// Use EV3LargeRegulatedMotor directly to avoid conflict with static Motor class
-		leftMotor = new EV3LargeRegulatedMotor(MotorPort.B);
-		rightMotor = new EV3LargeRegulatedMotor(MotorPort.C);
-		
-		pilot = new DifferentialPilot(diam, trackWidth, leftMotor, rightMotor);
-		pilot.setLinearSpeed(6);	// 6 cm/s for linear movement
-		pilot.setAngularSpeed(15);	// 15 degree/s for rotation in place
-		pilot.setLinearAcceleration(200);	// gradually increase to the desired linear speed
-		
-		nav = new Navigator(pilot);
-	}
+	// Field Dimensions
+	private static final float FIELD_WIDTH = 143.0f;
+	private static final float FIELD_HEIGHT = 115.0f;
+	private static final float GOAL_Y = 57.5f;
+	private static final float BLUE_START_X = 20.0f;
+	private static final float GREEN_START_X = 123.0f;
 	
 	// Goal Coordinates (Based on 143x115 map)
-	// Blue Goal (Left side) - Target for Green Team
-	private static final Waypoint BLUE_GOAL = new Waypoint(15.0f, 57.5f); 
-	// Green Goal (Right side) - Target for Blue Team
-	private static final Waypoint GREEN_GOAL = new Waypoint(128.0f, 57.5f);
+	private static final Waypoint BLUE_GOAL = new Waypoint(15.0f, GOAL_Y); 
+	private static final Waypoint GREEN_GOAL = new Waypoint(128.0f, GOAL_Y);
 	
 	private boolean isBlueTeam = true; // Default to Blue team
 	private boolean isAttacker = true; // Default to Attacker
+	private boolean isAutonomous = true; // Default to Autonomous
+	private boolean isArmDown = false;
+	
+	private RemoteControl remoteControl;
 	
 	private Waypoint detectedOpponent = null; // Track opponent position for defense
 
+	public Project2() {
+		robot = new RobotController();
+		obstacleLines = new ArrayList<>();
+		currentMap = initializeBaseMap();
+	}
+
 	public static void main(String[] args) {
-		Project2 robot = new Project2();
-		robot.run();
+		Project2 project = new Project2();
+		project.run();
 	}
 	
 	public void run() {
 		try {
+			robot.initHardware();
+			robot.startThreads();
+			
+			// Start Remote Control Listener
+			remoteControl = new RemoteControl(12345);
+			remoteControl.start();
+			
 			// 0. Setup and Team Selection
 			selectTeamAndRole();
 			
 			// Dynamic Localization
 			localize();
 			
-			// Reset arm at the beginning
-			resetArm();
-			
 			long gameEndTime = System.currentTimeMillis() + 5 * 60 * 1000; // 5 minutes
 			
 			while (System.currentTimeMillis() < gameEndTime) {
 				System.out.println("--- NEW CYCLE ---");
-				System.out.println("Waiting for Start Signal (ENTER)...");
+				System.out.println("Reposition Robot & Press ENTER");
 				Button.ENTER.waitForPress();
+				
+				// Reset Map and Pose for new cycle
+				obstacleLines.clear();
+				currentMap = initializeBaseMap();
+				
+				if (isBlueTeam) {
+					robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, GOAL_Y, 0.0f));
+				} else {
+					robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GOAL_Y, 180.0f));
+				}
+				System.out.println("State Reset.");
+				
+				resetArm(); // Reset arm at the start of each cycle
 				
 				if (isAttacker) {
 					runOffense();
@@ -179,9 +122,142 @@ public class Project2 {
 		if (Button.ESCAPE.isDown()) {
 			throw new RuntimeException("Game aborted by user");
 		}
+		checkRemoteOverride();
+	}
+	
+	private void checkRemoteOverride() {
+		if (remoteControl == null) return;
+		
+		String cmd = remoteControl.getCommand();
+		
+		if (cmd.equals("EXIT")) {
+			throw new RuntimeException("Game aborted by user");
+		}
+		
+		if (!cmd.equals("STOP")) {
+			System.out.println("Remote Override: " + cmd);
+			if (isMoving()) {
+				stop();
+			}
+			
+			while (!cmd.equals("STOP") && !Button.ESCAPE.isDown()) {
+				cmd = remoteControl.getCommand();
+				
+				if (cmd.equals("EXIT")) {
+					throw new RuntimeException("Game aborted by user");
+				}
+				
+				float obstacleDist = robot.getEV3Distance();
+				
+				if (cmd.equals("FORWARD") && obstacleDist < 20) {
+					stop();
+					lejos.hardware.Sound.buzz();
+					sleep(500);
+					continue;
+				}
+				
+				switch (cmd) {
+					case "FORWARD":
+						if (!isMoving()) forward();
+						break;
+					case "BACKWARD":
+						if (!isMoving()) robot.getPilot().backward();
+						break;
+					case "LEFT":
+						if (!isMoving()) robot.getPilot().rotateLeft();
+						break;
+					case "RIGHT":
+						if (!isMoving()) robot.getPilot().rotateRight();
+						break;
+					case "STOP":
+						stop();
+						break;
+					case "KICK":
+						System.out.println("Kicking!");
+						robot.getPilot().setLinearSpeed(robot.getPilot().getMaxLinearSpeed());
+						robot.getPilot().travel(15);
+						robot.getPilot().travel(-15);
+						remoteControl.clearCommand();
+						break;
+					case "ARM_UP":
+						 if (isArmDown) {
+							robot.getArmMotor().rotate(90);
+							isArmDown = false;
+						 }
+						 remoteControl.clearCommand();
+						 break;
+					case "ARM_DOWN":
+						 if (!isArmDown) {
+							robot.getArmMotor().rotate(-90);
+							isArmDown = true;
+						 }
+						 remoteControl.clearCommand();
+						 break;
+				}
+				
+				sleep(50);
+			}
+			
+			robot.getPilot().stop();
+			System.out.println("Remote Override Ended. Resuming Auto.");
+		}
 	}
 	
 	private void selectTeamAndRole() {
+		System.out.println("Select Team & Role:");
+		System.out.println("Use GUI Setup OR Buttons:");
+		System.out.println("UP: Blue / Attacker");
+		System.out.println("DOWN: Green / Defender");
+		
+		boolean setupComplete = false;
+		
+		while (!setupComplete) {
+			// Check GUI Command
+			String cmd = remoteControl.getCommand();
+			if (cmd.startsWith("SETUP")) {
+				String[] parts = cmd.split(" ");
+				if (parts.length == 3) {
+					isBlueTeam = parts[1].equals("BLUE");
+					isAttacker = parts[2].equals("ATTACKER");
+					System.out.println("GUI Setup Received: " + parts[1] + " / " + parts[2]);
+					remoteControl.clearCommand();
+					setupComplete = true;
+					break;
+				}
+			}
+			
+			// Check Buttons (Fallback)
+			if (Button.UP.isDown()) {
+				// Simple button logic: UP = Blue/Attacker default? 
+				// The original logic was sequential (Team then Role).
+				// Let's keep it simple: If they touch buttons, we go into button mode.
+				System.out.println("Button detected. Entering manual setup...");
+				manualButtonSetup();
+				setupComplete = true;
+			}
+			
+			if (Button.DOWN.isDown()) {
+				System.out.println("Button detected. Entering manual setup...");
+				manualButtonSetup();
+				setupComplete = true;
+			}
+			
+			sleep(100);
+		}
+		
+		// Set initial pose based on team
+		if (isBlueTeam) {
+			robot.getNav().getPoseProvider().setPose(new Pose(BLUE_START_X, GOAL_Y, 0.0f));
+			System.out.println("Start Pose: (" + BLUE_START_X + ", " + GOAL_Y + ", 0°)");
+		} else {
+			robot.getNav().getPoseProvider().setPose(new Pose(GREEN_START_X, GOAL_Y, 180.0f));
+			System.out.println("Start Pose: (" + GREEN_START_X + ", " + GOAL_Y + ", 180°)");
+		}
+		
+		try { Thread.sleep(500); } catch (Exception e) {}
+	}
+	
+	private void manualButtonSetup() {
 		System.out.println("Select Team:");
 		System.out.println("UP: Blue Team");
 		System.out.println("DOWN: Green Team");
@@ -209,21 +285,6 @@ public class Project2 {
 			isAttacker = true;
 			System.out.println("Role: ATTACKER");
 		}
-		
-		// Set initial pose based on team
-		// Map is 143cm wide. Center y is 57.5cm.
-		// B3 is approx x=20. G3 is approx x=123.
-		if (isBlueTeam) {
-			// Blue starts on left (B3), facing right (0 degrees)
-			nav.getPoseProvider().setPose(new Pose(20.0f, 57.5f, 0.0f));
-			System.out.println("Start Pose: (20, 57.5, 0°)");
-		} else {
-			// Green starts on right (G3), facing left (180 degrees)
-			nav.getPoseProvider().setPose(new Pose(123.0f, 57.5f, 180.0f));
-			System.out.println("Start Pose: (123, 57.5, 180°)");
-		}
-		
-		try { Thread.sleep(500); } catch (Exception e) {}
 	}
 	
 	private void runOffense() {
@@ -259,6 +320,11 @@ public class Project2 {
 				// Phase 6: Release
 				releaseBall();
 				
+				// Drive forward to place ball on goal
+				System.out.println("Nudging ball into goal...");
+				robot.getPilot().travel(10);
+				robot.getPilot().stop();
+				
 				// Phase 7: Celebrate (3 seconds)
 				celebrateGoal();
 				
@@ -269,7 +335,7 @@ public class Project2 {
 			}
 			
 			// Reset arm for next round
-			resetArm();
+			// resetArm(); // Removed: Arm reset is now handled at start of cycle
 			
 			if (delivered) {
 				Button.ENTER.waitForPress();
@@ -280,7 +346,7 @@ public class Project2 {
 	private void runDefense() {
 		System.out.println("DEFENSE STATE");
 		System.out.println("Waiting 3 seconds...");
-		try { Thread.sleep(3000); } catch (Exception e) {}
+		sleep(3000);
 		
 		// Defense Loop - break on button press
 		while (!Button.ENTER.isDown()) {
@@ -291,17 +357,16 @@ public class Project2 {
 			
 			if (ballLocation != null) {
 				// Priority 1: Ball found - Kick it!
-				// Check if ball is in safe zone to go to (not in back zones)
 				if (ballLocation.x > 10 && ballLocation.x < 133) {
 					System.out.println("Defending! Going to ball...");
 					navigateWithPathPlanning(ballLocation, true); // Go to ball
 					
 					// Kick/Push
 					System.out.println("Kicking ball away!");
-					pilot.setLinearSpeed(20);
-					pilot.travel(15); // Push
-					pilot.travel(-15); // Back off
-					pilot.rotate(45); // Turn away
+					robot.getPilot().setLinearSpeed(20);
+					robot.getPilot().travel(15); // Push
+					robot.getPilot().travel(-15); // Back off
+					rotateBy(45); // Turn away
 				} else {
 					System.out.println("Ball in restricted zone. Holding position.");
 				}
@@ -313,24 +378,18 @@ public class Project2 {
 				System.out.println("No threats found. Scanning again...");
 			}
 			
-			// Check for manual end of cycle
 			if (Button.ENTER.isDown()) break;
 		}
 	}
 	
-	/**
-	 * Move towards the opponent to block them, but stop safely
-	 */
 	private void interceptOpponent(Waypoint opponent) {
 		System.out.println("Intercepting opponent...");
 		
-		// Calculate distance to opponent
-		Pose currentPose = nav.getPoseProvider().getPose();
+		Pose currentPose = robot.getNav().getPoseProvider().getPose();
 		float dx = opponent.x - currentPose.getX();
 		float dy = opponent.y - currentPose.getY();
 		float distance = (float)Math.sqrt(dx*dx + dy*dy);
 		
-		// Turn to face opponent
 		float targetAngle = (float)Math.toDegrees(Math.atan2(dy, dx));
 		float currentHeading = currentPose.getHeading();
 		float turnAngle = targetAngle - currentHeading;
@@ -338,25 +397,21 @@ public class Project2 {
 		while (turnAngle < -180) turnAngle += 360;
 		rotateBy(turnAngle);
 		
-		// Drive towards them but stop 25cm away to avoid "hard contact"
 		float travelDist = distance - 25.0f;
 		
 		if (travelDist > 5) {
 			System.out.println("Closing distance: " + travelDist + "cm");
-			pilot.travel(travelDist);
-			
-			// Intimidate / Block
+			robot.getPilot().travel(travelDist, true);
+			while (robot.getPilot().isMoving()) {
+				checkEscape();
+				sleep(50);
+			}
 			lejos.hardware.Sound.buzz();
 		} else {
 			System.out.println("Already close to opponent. Holding ground.");
 		}
 	}
 	
-	/**
-	 * Specialized scan for Defense: Looks for Ball AND Opponent
-	 * Returns Ball Waypoint if found (priority), otherwise null.
-	 * Sets 'detectedOpponent' field if opponent is found.
-	 */
 	private Waypoint scanForDefense() {
 		System.out.println("Scanning for threats (Ball/Opponent)...");
 		detectedOpponent = null;
@@ -364,22 +419,19 @@ public class Project2 {
 		float closestBallDist = Float.MAX_VALUE;
 		float closestOpponentDist = Float.MAX_VALUE;
 		
-		if (gyroSensor != null) gyroSensor.reset();
-		float startAngle = getGyroAngle();
+		robot.resetGyro();
 		float cumulativeAngle = 0;
 		
-		// Faster scan for defense (20 degree steps)
 		for (int step = 0; step < 18; step++) {
 			checkEscape();
 			rotateBy(20);
 			cumulativeAngle += 20;
-			try { Thread.sleep(100); } catch (Exception e) {}
+			sleep(100);
 			
-			float currentAngle = getGyroAngle();
-			float lowDistance = getNXTDistance(); // Ball
-			float highDistance = getEV3Distance(); // Opponent/Wall
+			float lowDistance = robot.getNXTDistance(); // Ball
+			float highDistance = robot.getEV3Distance(); // Opponent/Wall
 			
-			Pose pose = nav.getPoseProvider().getPose();
+			Pose pose = robot.getNav().getPoseProvider().getPose();
 			float angleOffset = cumulativeAngle;
 			float headingRad = (float)Math.toRadians(pose.getHeading() + angleOffset);
 			
@@ -396,16 +448,13 @@ public class Project2 {
 			}
 			
 			// 2. Check for Opponent (High Sensor)
-			// Look for objects within 100cm that are NOT walls
 			if (highDistance > 5 && highDistance < 100) {
 				float objX = pose.getX() + highDistance * (float)Math.cos(headingRad);
 				float objY = pose.getY() + highDistance * (float)Math.sin(headingRad);
 				
-				// Filter out walls (allow 15cm buffer from boundaries)
 				boolean isWall = (objX < 15 || objX > 128 || objY < 15 || objY > 100);
 				
 				if (!isWall) {
-					// It's an object inside the field!
 					if (highDistance < closestOpponentDist) {
 						closestOpponentDist = highDistance;
 						detectedOpponent = new Waypoint(objX, objY);
@@ -421,15 +470,10 @@ public class Project2 {
 		System.out.println("Celebrating Goal!");
 		for (int i = 0; i < 3; i++) {
 			lejos.hardware.Sound.beep();
-			try { Thread.sleep(1000); } catch (Exception e) {}
+			sleep(1000);
 		}
 	}
 
-	/**
-	 * Scan 360 degrees to detect obstacles and find the ball
-	 * Obstacles: High sensor detects them
-	 * Ball: Low sensor detects it, high sensor doesn't (ball is low to ground)
-	 */
 	private Waypoint scanEnvironmentAndFindBall() {
 		System.out.println("Starting 360 degree scan...");
 		System.out.println("Looking for obstacles (high sensor) and ball (low sensor)");
@@ -438,84 +482,46 @@ public class Project2 {
 		float closestDistance = Float.MAX_VALUE;
 		float ballHeading = 0;
 		
-		if (gyroSensor != null) {
-			gyroSensor.reset(); // Reset gyro to 0 at start of scan
-		}
+		robot.resetGyro();
 		
-		float startAngle = getGyroAngle();
+		float startAngle = robot.getGyroAngle();
 		float cumulativeAngle = 0;
-		final float STEP_SIZE = 10.0f; // 10 degree steps for smooth but accurate scan
-		final int TOTAL_STEPS = 36; // 360 / 10 = 36 steps
+		final float STEP_SIZE = 10.0f; 
+		final int TOTAL_STEPS = 36; 
 		
-		// Step-by-step rotation for accuracy
 		for (int step = 0; step < TOTAL_STEPS; step++) {
 			checkEscape();
 			rotateBy(STEP_SIZE);
 			cumulativeAngle += STEP_SIZE;
 			
-			// Let sensors stabilize after rotation
-			try {
-				Thread.sleep(150);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			sleep(150);
 			
-			float currentAngle = getGyroAngle();
-			float lowDistance = getNXTDistance(); // Use low sensor for ball detection
-			float highDistance = getEV3Distance(); // Use high sensor to check for obstacles
+			float currentAngle = robot.getGyroAngle();
+			float lowDistance = robot.getNXTDistance(); 
+			float highDistance = robot.getEV3Distance(); 
 			
 			System.out.println("Step " + (step+1) + "/36, Angle " + String.format("%.0f", cumulativeAngle) + 
 				"° (Gyro: " + String.format("%.0f", currentAngle - startAngle) + 
 				"°): Low=" + String.format("%.1f", lowDistance) + 
 				"cm, High=" + String.format("%.1f", highDistance) + "cm");
 			
-			// Detect obstacles with high sensor
 			// Obstacle detection
 			if (highDistance > 5 && highDistance < OBSTACLE_DISTANCE) {
-				Pose pose = nav.getPoseProvider().getPose();
-				float angleOffset = cumulativeAngle;
-				
-				// Calculate obstacle position
-				float obstacleX = pose.getX() + highDistance * (float)Math.cos(Math.toRadians(pose.getHeading() + angleOffset));
-				float obstacleY = pose.getY() + highDistance * (float)Math.sin(Math.toRadians(pose.getHeading() + angleOffset));
-				
-				// Add obstacle to map (avoid duplicates by checking distance)
-				boolean isDuplicate = false;
-				for (int i = 0; i < obstacleLines.size(); i += 4) {
-					// Check if we already have an obstacle near this location
-					if (obstacleLines.size() > i) {
-						Line firstLine = obstacleLines.get(i);
-						float dx = firstLine.x1 - obstacleX;
-						float dy = firstLine.y1 - obstacleY;
-						if (Math.sqrt(dx*dx + dy*dy) < 15) { // Within 15cm
-							isDuplicate = true;
-							break;
-						}
-					}
-				}
-				
-				if (!isDuplicate) {
-					addObstacleToMap(obstacleX, obstacleY);
-					System.out.println("  -> OBSTACLE at " + String.format("%.0f", highDistance) + "cm");
-				}
+				System.out.println("  -> OBSTACLE detected at " + String.format("%.0f", highDistance) + "cm. Refining...");
+				scanAndAddObstacle();
 			}
 			
-			// Ball detection: Low sensor sees something BUT high sensor doesn't see it (or sees it much farther)
-			// This means the object is low to the ground = likely the ball!
-			if (lowDistance > 2 && lowDistance < 250) // Low sensor detects something
-			{
-				// High sensor should NOT detect it at the same or closer distance
+			// Ball detection
+			if (lowDistance > 2 && lowDistance < 250) {
 				if (highDistance > lowDistance + 10 || highDistance > 100) {
 					System.out.println("  -> BALL detected by LOW sensor only!");
 					
-					// Track the closest ball
 					if (lowDistance < closestDistance) {
 						closestDistance = lowDistance;
-						ballHeading = currentAngle; // Store actual gyro angle when ball found
-						Pose pose = nav.getPoseProvider().getPose();
+						ballHeading = currentAngle; 
+						Pose pose = robot.getNav().getPoseProvider().getPose();
 						float angleOffset = cumulativeAngle;
 						
-						// Calculate ball position using current heading
 						float ballX = pose.getX() + lowDistance * (float)Math.cos(Math.toRadians(pose.getHeading() + angleOffset));
 						float ballY = pose.getY() + lowDistance * (float)Math.sin(Math.toRadians(pose.getHeading() + angleOffset));
 						
@@ -523,7 +529,6 @@ public class Project2 {
 						System.out.println("  -> Closest ball so far: " + String.format("%.1f", closestDistance) + 
 							" cm at gyro angle " + String.format("%.0f", ballHeading) + " degrees");
 							
-						// If ball is dangerously close, stop scanning to avoid bumping it
 						if (lowDistance < 18.0f) {
 							System.out.println("Ball is very close! Stopping scan to avoid collision.");
 							break;
@@ -534,47 +539,36 @@ public class Project2 {
 		}
 		
 		if (closestBall != null) {
-			float currentGyro = getGyroAngle();
+			float currentGyro = robot.getGyroAngle();
 			float rotateBack = ballHeading - currentGyro;
 			
-			// Normalize angle
 			while (rotateBack > 180) rotateBack -= 360;
 			while (rotateBack < -180) rotateBack += 360;
 			
 			System.out.println("\n*** BALL FOUND at distance: " + String.format("%.1f", closestDistance) + " cm ***");
-			System.out.println("Ball gyro angle: " + String.format("%.0f", ballHeading) + 
-				"°, Current gyro: " + String.format("%.0f", currentGyro) + "°");
 			System.out.println("Rotating " + String.format("%.0f", rotateBack) + " degrees to face ball...");
 			
 			lejos.hardware.Sound.beep();
 			rotateBy(rotateBack);
 			
-			// Only zone in if the ball is far enough away to avoid hitting it during the wiggle
 			if (closestDistance > 25.0f) {
-				// Zone in on the ball with a fine scan
 				System.out.println("Zoning in on ball (+- 5 degrees)...");
-				rotateBy(-5); // Start 5 degrees to the left
+				rotateBy(-5); 
 				
 				float minDistance = Float.MAX_VALUE;
 				float bestAngleOffset = 0;
 				
-				// Scan 10 degrees in 1 degree steps
 				for (int i = 0; i <= 10; i++) {
 					checkEscape();
-					float dist = getNXTDistance();
-					// System.out.println("Fine Scan " + i + ": " + dist);
+					float dist = robot.getNXTDistance();
 					if (dist < minDistance) {
 						minDistance = dist;
 						bestAngleOffset = i;
 					}
-					rotateBy(1); // Move 1 degree right
-					try { Thread.sleep(50); } catch (Exception e) {}
+					rotateBy(1); 
+					sleep(50);
 				}
 				
-				// Rotate back to best angle
-				// We are currently at +5 relative to center (total 10 degrees movement)
-				// We want to go to bestAngleOffset (which is 0..10 relative to start)
-				// So we need to rotate back by (10 - bestAngleOffset)
 				float correction = -(10 - bestAngleOffset);
 				System.out.println("Correction: " + correction + " degrees (Best dist: " + minDistance + ")");
 				rotateBy(correction);
@@ -586,16 +580,9 @@ public class Project2 {
 		}
 		
 		System.out.println("\nBall not detected in 360 degree scan");
-		System.out.println("Low sensor must detect something that high sensor doesn't see");
-		return null; // Ball not found
+		return null; 
 	}
 	
-	/**
-	 * Navigate to destination using path planning to avoid obstacles
-	 * @param destination Target location
-	 * @param trackBall If true, use ball tracking for final approach. If false, just go to coordinates.
-	 * @return true if navigation completed
-	 */
 	private boolean navigateWithPathPlanning(Waypoint destination, boolean trackBall) {
 		int maxRetries = 5;
 		int retries = 0;
@@ -604,7 +591,7 @@ public class Project2 {
 			ShortestPathFinder pathPlanner = new ShortestPathFinder(currentMap);
 			
 			try {
-				Pose startPose = nav.getPoseProvider().getPose();
+				Pose startPose = robot.getNav().getPoseProvider().getPose();
 				System.out.println("Current position: (" + String.format("%.1f", startPose.getX()) + ", " + 
 							   String.format("%.1f", startPose.getY()) + ")");
 				System.out.println("Target: (" + String.format("%.1f", destination.x) + ", " + 
@@ -626,29 +613,25 @@ public class Project2 {
 				
 				boolean pathBlocked = false;
 				
-				// Follow the path waypoint by waypoint
 				for (int i = 0; i < path.size(); i++) {
 					checkEscape();
 					Waypoint wp = path.get(i);
 					System.out.println("\nWaypoint " + (i+1) + "/" + path.size() + ": (" + 
 								   String.format("%.1f", wp.x) + ", " + String.format("%.1f", wp.y) + ")");
 					
-					// Navigate to this waypoint
 					if (i < path.size() - 1 || !trackBall) {
-						// Intermediate waypoint OR final waypoint if not tracking ball - go directly
 						if (!navigateToWaypoint(wp)) {
 							System.out.println("Path blocked! Re-planning...");
 							pathBlocked = true;
-							break; // Break for loop to re-plan
+							break; 
 						}
 					} else {
-						// Final waypoint AND tracking ball - use ball tracking
 						navigateDirectToBall(wp);
 					}
 				}
 				
 				if (!pathBlocked) {
-					return true; // Success
+					return true; 
 				}
 				
 				retries++;
@@ -668,12 +651,70 @@ public class Project2 {
 		return false;
 	}
 	
-	/**
-	 * Navigate to a waypoint without ball tracking, with dynamic obstacle avoidance
-	 * @return true if reached, false if obstacle detected
-	 */
+	private void scanAndAddObstacle() {
+		System.out.println("Scanning obstacle to refine position...");
+		
+		float minDistance = Float.MAX_VALUE;
+		float angleAtMin = 0;
+		
+		// Start scan from -20 degrees
+		rotateBy(-20);
+		
+		// Scan 40 degrees total (9 steps of 5 degrees: -20, -15, ..., 20)
+		// Note: The loop rotates 5 degrees *after* each measurement.
+		// 9 iterations * 5 degrees = 45 degrees total rotation.
+		// Starts at -20, ends at +25.
+		for (int i = 0; i <= 8; i++) {
+			float dist = robot.getEV3Distance();
+			if (dist < minDistance && dist > 0) {
+				minDistance = dist;
+				angleAtMin = -20 + (i * 5);
+			}
+			rotateBy(5);
+		}
+		
+		// Return to original heading (from +25 back to 0)
+		rotateBy(-25);
+		
+		if (minDistance < OBSTACLE_DISTANCE + 15) {
+			System.out.println("Refined Obstacle: " + minDistance + "cm at " + angleAtMin + " degrees");
+			
+			Pose pose = robot.getNav().getPoseProvider().getPose();
+			float headingRad = (float)Math.toRadians(pose.getHeading() + angleAtMin);
+			
+			float obstacleX = pose.getX() + minDistance * (float)Math.cos(headingRad);
+			float obstacleY = pose.getY() + minDistance * (float)Math.sin(headingRad);
+			
+			// Check for duplicates
+			boolean isDuplicate = false;
+			for (int i = 0; i < obstacleLines.size(); i += 4) {
+				if (obstacleLines.size() > i) {
+					Line firstLine = obstacleLines.get(i);
+					// Check distance to the first line of the existing obstacle (approx center)
+					// Note: firstLine.x1 is (centerX - half), so we add half back or just check proximity
+					// The original logic checked against x1,y1 directly with a 15cm threshold.
+					float dx = firstLine.x1 - obstacleX;
+					float dy = firstLine.y1 - obstacleY;
+					if (Math.sqrt(dx*dx + dy*dy) < 20) { // Increased threshold slightly to be safe
+						isDuplicate = true;
+						break;
+					}
+				}
+			}
+			
+			if (!isDuplicate) {
+				addObstacleToMap(obstacleX, obstacleY);
+				updateMapWithObstacles();
+			} else {
+				System.out.println("Obstacle already exists in map. Skipping.");
+			}
+		} else {
+			System.out.println("Scan did not confirm obstacle within range.");
+		}
+	}
+	
 	private boolean navigateToWaypoint(Waypoint wp) {
-		Pose currentPose = nav.getPoseProvider().getPose();
+		Pose currentPose = robot.getNav().getPoseProvider().getPose();
 		float dx = wp.x - currentPose.getX();
 		float dy = wp.y - currentPose.getY();
 		float distance = (float)Math.sqrt(dx*dx + dy*dy);
@@ -681,52 +722,41 @@ public class Project2 {
 		float currentHeading = currentPose.getHeading();
 		float turnAngle = targetAngle - currentHeading;
 		
-		// Normalize angle
 		while (turnAngle > 180) turnAngle -= 360;
 		while (turnAngle < -180) turnAngle += 360;
 		
 		System.out.println("Distance: " + String.format("%.1f", distance) + "cm, Turn: " + String.format("%.0f", turnAngle) + "°");
 		
-		// Turn to face waypoint
 		if (Math.abs(turnAngle) > 5) {
 			rotateBy(turnAngle);
 		}
 		
-		// Travel to waypoint with monitoring
-		pilot.forward();
+		forward();
 		
 		float startX = currentPose.getX();
 		float startY = currentPose.getY();
 		boolean obstacleDetected = false;
 		
-		while (pilot.isMoving()) {
+		while (robot.getPilot().isMoving()) {
 			checkEscape();
-			// Check for obstacles
-			float highDistance = getEV3Distance();
+			float highDistance = robot.getEV3Distance();
 			if (highDistance < OBSTACLE_DISTANCE && highDistance > 0) {
-				pilot.stop();
+				robot.getPilot().stop();
 				System.out.println("Obstacle detected during movement! Distance: " + highDistance);
 				
-				// Add obstacle
-				Pose pose = nav.getPoseProvider().getPose();
-				float obstacleX = pose.getX() + highDistance * (float)Math.cos(Math.toRadians(pose.getHeading()));
-				float obstacleY = pose.getY() + highDistance * (float)Math.sin(Math.toRadians(pose.getHeading()));
-				addObstacleToMap(obstacleX, obstacleY);
-				updateMapWithObstacles();
+				scanAndAddObstacle();
 				
-				// Back up slightly to avoid getting stuck on the obstacle
 				System.out.println("Backing up slightly...");
-				pilot.travel(-5);
+				robot.getPilot().travel(-5);
 				
 				obstacleDetected = true;
 				break;
 			}
 			
-			// Check if reached
-			Pose p = nav.getPoseProvider().getPose();
+			Pose p = robot.getNav().getPoseProvider().getPose();
 			float distTraveled = (float)Math.sqrt(Math.pow(p.getX()-startX, 2) + Math.pow(p.getY()-startY, 2));
 			if (distTraveled >= distance) {
-				pilot.stop();
+				robot.getPilot().stop();
 				break;
 			}
 			
@@ -735,18 +765,22 @@ public class Project2 {
 		
 		if (obstacleDetected) return false;
 		
+		Pose p = robot.getNav().getPoseProvider().getPose();
+		float distRemaining = (float)p.distanceTo(wp);
+		
+		if (distRemaining > 5.0f) {
+			System.out.println("Waypoint missed! Remaining dist: " + distRemaining);
+			return false;
+		}
+		
 		System.out.println("Waypoint reached");
 		return true;
 	}
 	
-	/**
-	 * Navigate directly to ball with tracking and stopping when close
-	 */
 	private void navigateDirectToBall(Waypoint ballLocation) {
 		System.out.println("Direct navigation to ball at (" + (int)ballLocation.x + ", " + (int)ballLocation.y + ")");
 		
-		// Calculate initial distance to ball
-		Pose currentPose = nav.getPoseProvider().getPose();
+		Pose currentPose = robot.getNav().getPoseProvider().getPose();
 		float dx = ballLocation.x - currentPose.getX();
 		float dy = ballLocation.y - currentPose.getY();
 		float estimatedDistance = (float)Math.sqrt(dx*dx + dy*dy);
@@ -754,7 +788,6 @@ public class Project2 {
 		System.out.println("Estimated distance to ball: " + String.format("%.1f", estimatedDistance) + " cm");
 		System.out.println("Moving forward with ball tracking...");
 		
-		// First, turn to face the ball
 		float targetAngle = (float)Math.toDegrees(Math.atan2(dy, dx));
 		float currentHeading = currentPose.getHeading();
 		float turnAngle = targetAngle - currentHeading;
@@ -764,36 +797,33 @@ public class Project2 {
 			rotateBy(turnAngle);
 		}
 		
-		pilot.setLinearSpeed(5); // Slower speed for better control
-		pilot.forward(); // Start moving forward
+		robot.getPilot().setLinearSpeed(5); 
+		forward(); 
 		
 		float lastBallDistance = Float.MAX_VALUE;
 		int lostBallCount = 0;
 		int cycleCount = 0;
 		
-		// Move toward ball with continuous tracking
-		while (pilot.isMoving()) {
+		while (robot.getPilot().isMoving()) {
 			checkEscape();
 			cycleCount++;
-			float lowDistance = getNXTDistance();
-			float highDistance = getEV3Distance();
+			float lowDistance = robot.getNXTDistance();
+			float highDistance = robot.getEV3Distance();
 			
-			// More lenient ball detection - just look for something close with low sensor
 			boolean ballDetected = (lowDistance > 2 && lowDistance < 150);
 			
 			if (ballDetected) {
 				System.out.println("Tracking: Low=" + String.format("%.1f", lowDistance) + 
 								 "cm, High=" + String.format("%.1f", highDistance) + "cm");
 				
-				// If ball distance is increasing, we might have passed it or it moved
 				if (lastBallDistance != Float.MAX_VALUE && lowDistance > lastBallDistance + 5) {
-					pilot.stop();
+					robot.getPilot().stop();
 					System.out.println("Ball distance increasing! Was " + String.format("%.1f", lastBallDistance) + 
 									 "cm, now " + String.format("%.1f", lowDistance) + "cm. Sweeping...");
 					if (sweepForBall()) {
 						System.out.println("Ball realigned! Continuing...");
-						pilot.forward();
-						lastBallDistance = Float.MAX_VALUE; // Reset
+						robot.getPilot().forward();
+						lastBallDistance = Float.MAX_VALUE; 
 						lostBallCount = 0;
 					} else {
 						System.out.println("Could not realign to ball.");
@@ -803,10 +833,8 @@ public class Project2 {
 					lastBallDistance = lowDistance;
 					lostBallCount = 0;
 					
-					// Stop if we're close enough to the ball
-					// Increased stop distance to 30cm to prevent pushing the ball
 					if (lowDistance < 30) {
-						pilot.stop();
+						robot.getPilot().stop();
 						System.out.println("*** REACHED BALL! Stopping at " + String.format("%.1f", lowDistance) + " cm ***");
 						break;
 					}
@@ -817,67 +845,51 @@ public class Project2 {
 								 "cm, High=" + String.format("%.1f", highDistance) + 
 								 "cm (lost count: " + lostBallCount + ")");
 				
-				// Give it more time before sweeping
 				if (lostBallCount == 8) {
-					pilot.stop();
+					robot.getPilot().stop();
 					System.out.println("Lost ball, sweeping to reacquire...");
 					
-					// Quick sweep left and right
 					if (sweepForBall()) {
 						System.out.println("Ball reacquired! Continuing...");
-						pilot.forward();
+						robot.getPilot().forward();
 						lostBallCount = 0;
 					} else {
 						System.out.println("Ball not found in sweep, stopping.");
 						break;
 					}
 				} else if (lostBallCount >= 15) {
-					pilot.stop();
+					robot.getPilot().stop();
 					System.out.println("Ball lost for too long, stopping.");
 					break;
 				}
 			}
 			
-			// Check for high obstacles (not the ball)
 			if (highDistance < 15 && highDistance > 0 && 
 				(lowDistance > highDistance || lowDistance > 100)) {
-				pilot.stop();
+				robot.getPilot().stop();
 				System.out.println("Obstacle detected by high sensor! Stopping.");
 				break;
 			}
 			
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			sleep(100);
 		}
 		
-		pilot.stop();
+		stop();
 		System.out.println("Navigation complete!");
 		lejos.hardware.Sound.beepSequenceUp();
 	}
 	
-	/**
-	 * Perform a quick sweep to reacquire the ball
-	 * Returns true if ball found
-	 */
 	private boolean sweepForBall() {
-		float[] sweepAngles = {-15, 30, -30, 15}; // Sweep pattern: left, right, back to center
+		float[] sweepAngles = {-15, 30, -30, 15}; 
 		
 		for (float angle : sweepAngles) {
 			rotateBy(angle);
 			
-			try {
-				Thread.sleep(200); // Let sensors stabilize
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			sleep(200);
 			
-			float lowDistance = getNXTDistance();
-			float highDistance = getEV3Distance();
+			float lowDistance = robot.getNXTDistance();
+			float highDistance = robot.getEV3Distance();
 			
-			// Check if we found the ball
 			if (lowDistance > 2 && lowDistance < 50 && 
 				(highDistance > lowDistance + 10 || highDistance > 100)) {
 				System.out.println("  -> Ball found at " + String.format("%.1f", lowDistance) + " cm!");
@@ -885,305 +897,181 @@ public class Project2 {
 			}
 		}
 		
-		return false; // Ball not found during sweep
+		return false; 
 	}
 	
-	/**
-	 * Quick scan in forward direction only
-	 */
-	private void scanAhead() {
-		for (float angle = -45; angle <= 45; angle += 15) {
-			pilot.rotate(15);
-			
-			float distance = getEV3Distance(); // Use high sensor for obstacles
-			if (distance < OBSTACLE_DISTANCE && distance > 0) {
-				Pose pose = nav.getPoseProvider().getPose();
-				float obstacleX = pose.getX() + distance * (float)Math.cos(Math.toRadians(pose.getHeading()));
-				float obstacleY = pose.getY() + distance * (float)Math.sin(Math.toRadians(pose.getHeading()));
-				addObstacleToMap(obstacleX, obstacleY);
-			}
-		}
-		pilot.rotate(-45); // Return to center
-	}
-	
-	/**
-	 * Add obstacle as a square on the map
-	 */
 	private void addObstacleToMap(float centerX, float centerY) {
 		float half = OBSTACLE_PADDING / 2;
 		
-		// Create a square obstacle
 		obstacleLines.add(new Line(centerX - half, centerY - half, centerX + half, centerY - half));
 		obstacleLines.add(new Line(centerX + half, centerY - half, centerX + half, centerY + half));
 		obstacleLines.add(new Line(centerX + half, centerY + half, centerX - half, centerY + half));
 		obstacleLines.add(new Line(centerX - half, centerY + half, centerX - half, centerY - half));
 	}
 	
-	/**
-	 * Update the map with all detected obstacles
-	 */
 	private void updateMapWithObstacles() {
-		ArrayList<Line> allLines = new ArrayList<>();
-		
-		// Add base map boundaries
-		allLines.add(new Line(0.0f, 0.0f, 143.0f, 0.0f));
-		allLines.add(new Line(0.0f, 0.0f, 0.0f, 115.0f));
-		allLines.add(new Line(0.0f, 115.0f, 143.0f, 115.0f));
-		allLines.add(new Line(143.0f, 115.0f, 143.0f, 0.0f));
-		
-		// Add all obstacle lines
+		ArrayList<Line> allLines = getBoundaryLines();
 		allLines.addAll(obstacleLines);
-		
-		Line[] lineArr = allLines.toArray(new Line[allLines.size()]);
-		currentMap = new LineMap(lineArr, new Rectangle(0.0f, 0.0f, 143.0f, 115.0f));
-		
+		currentMap = createLineMap(allLines);
 		System.out.println("Map updated with " + obstacleLines.size()/4 + " obstacles");
 	}
 	
-	/**
-	 * Initialize base map with play area boundaries only
-	 */
 	private LineMap initializeBaseMap() {
-		ArrayList<Line> lines = new ArrayList<>();
-		
-		// Play area edges
-		lines.add(new Line(0.0f, 0.0f, 143.0f, 0.0f));
-		lines.add(new Line(0.0f, 0.0f, 0.0f, 115.0f));
-		lines.add(new Line(0.0f, 115.0f, 143.0f, 115.0f));
-		lines.add(new Line(143.0f, 115.0f, 143.0f, 0.0f));
-		
-		Line[] lineArr = lines.toArray(new Line[lines.size()]);
-		return new LineMap(lineArr, new Rectangle(0.0f, 0.0f, 143.0f, 115.0f));
+		return createLineMap(getBoundaryLines());
 	}
 	
-	/**
-	 * Get distance from EV3 ultrasonic sensor (high - for obstacles)
-	 */
-	private float getEV3Distance() {
-		float[] sample = new float[ev3Distance.sampleSize()];
-		ev3Distance.fetchSample(sample, 0);
-		float distance = sample[0] * 100; // Convert to cm
-		// Handle infinity/out of range
-		if (Float.isInfinite(distance) || distance > 255) {
-			return 255; // Max sensor range
-		}
-		return distance;
-	}
-	
-	/**
-	 * Get distance from NXT ultrasonic sensor (low - for ball detection)
-	 */
-	private float getNXTDistance() {
-		float[] sample = new float[nxtDistance.sampleSize()];
-		nxtDistance.fetchSample(sample, 0);
-		float distance = sample[0] * 100; // Convert to cm
-		// Handle infinity/out of range
-		if (Float.isInfinite(distance) || distance > 255) {
-			return 255; // Max sensor range
-		}
-		return distance;
-	}
-	
-	/**
-	 * Get current angle from gyro sensor
-	 */
-	private float getGyroAngle() {
-		if (gyroAngle == null) {
-			return 0; // Gyro not available
-		}
-		float[] sample = new float[gyroAngle.sampleSize()];
-		gyroAngle.fetchSample(sample, 0);
-		return sample[0];
-	}
-	
-	/**
-	 * Rotate by a relative angle amount
-	 */
 	private void rotateBy(float degrees) {
-		pilot.rotate(degrees);
-		// Wait for rotation to complete
-		while (pilot.isMoving()) {
-			try {
-				Thread.sleep(50);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		robot.getPilot().rotate(degrees, true);
+		while (isMoving()) {
+			checkEscape();
+			sleep(50);
 		}
 	}
 
-	/**
-	 * Drive forward to capture the ball using IR sensor and Arm
-	 */
+	private void stop() {
+		robot.getPilot().stop();
+	}
+
+	private void forward() {
+		robot.getPilot().forward();
+	}
+
+	private boolean isMoving() {
+		return robot.getPilot().isMoving();
+	}
+
 	private void captureBall() {
 		System.out.println("Capturing ball...");
 		
-		// We are currently ~30cm away from the ball
-		pilot.setLinearSpeed(3); // Very slow for capture
+		robot.getPilot().setLinearSpeed(3); 
 		
-		// Set arm speed to max to ensure it lifts quickly
-		armMotor.setSpeed(armMotor.getMaxSpeed());
+		robot.getArmMotor().setSpeed(robot.getArmMotor().getMaxSpeed());
 		
-		pilot.forward();
+		forward();
 		
-		// Use tacho count to estimate distance traveled since pilot.getMovement() might not be available
-		int startTacho = leftMotor.getTachoCount();
-		// Approx 20.5 degrees per cm for NXT wheels
+		int startTacho = robot.getLeftMotor().getTachoCount();
 		float degreesPerCm = 20.5f; 
 		
 		boolean armLifted = false;
 		
-		while (pilot.isMoving()) {
+		while (isMoving()) {
 			checkEscape();
-			int currentTacho = leftMotor.getTachoCount();
+			int currentTacho = robot.getLeftMotor().getTachoCount();
 			float distanceTraveled = Math.abs(currentTacho - startTacho) / degreesPerCm;
 			
-			// Check IR Sensor
-			float irDist = getIRDistance();
+			float irDist = robot.getIRDistance();
 			
-			// 1. Start lifting arm earlier (after 5cm travel instead of 20cm)
 			if (!armLifted && distanceTraveled >= 5.0f) {
 				System.out.println("Lifting arm...");
-				// Rotate arm to lift (adjust angle as needed, assuming 90 degrees lifts it)
-				armMotor.rotate(90, true); // Async return
+				robot.getArmMotor().rotate(90, true); 
 				armLifted = true;
+				isArmDown = false;
 			}
 			
-			// 2. Stop if IR detects ball (close proximity) or we traveled too far
-			// IR distance is usually arbitrary units or cm. Assuming cm for EV3 IR.
-			// "touches the ball" -> very small value.
-			if (irDist < 5.0f) { // Ball detected underneath/close
+			if (irDist < 5.0f) { 
 				System.out.println("IR detected ball! Stopping.");
 				break;
 			}
 			
-			// Safety: Stop if we traveled the requested ~30cm (plus small buffer) without IR detection
 			if (distanceTraveled > 35.0f) { 
 				System.out.println("IR not detected. Stopping at max distance (35cm).");
 				break;
 			}
 			
-			try { Thread.sleep(10); } catch (Exception e) {}
+			sleep(10);
 		}
 		
-		pilot.stop();
-		// Ensure arm is fully up if not already
+		stop();
 		if (!armLifted) {
-			armMotor.rotate(90, false);
+			robot.getArmMotor().rotate(90, false);
+			isArmDown = false;
 		}
 		
-		// Lower arm to trap the ball underneath
 		System.out.println("Trapping ball (lowering arm)...");
-		armMotor.rotate(-90);
+		robot.getArmMotor().rotate(-90);
+		isArmDown = true;
 	}
 
-	/**
-	 * Navigate to the goal area
-	 */
 	private boolean deliverBallToGoal(Waypoint goal) {
-		// Reuse path planning to get to the goal
 		return navigateWithPathPlanning(goal, false);
 	}
 
-	/**
-	 * Release the ball at the goal
-	 */
 	private void releaseBall() {
 		System.out.println("Releasing ball...");
-		// Lift the arm to release/place the ball
-		armMotor.rotate(90);
-		// Robot sits on the goal (no backup)
+		robot.getArmMotor().rotate(90);
+		isArmDown = false;
 	}
 	
-	private float getIRDistance() {
-		if (irDistanceMode == null) return 255;
-		float[] sample = new float[irDistanceMode.sampleSize()];
-		irDistanceMode.fetchSample(sample, 0);
-		return sample[0];
-	}
-	
-	/**
-	 * Reset arm to down position
-	 */
 	private void resetArm() {
+		if (isArmDown) {
+			System.out.println("Arm is already down.");
+			return;
+		}
 		System.out.println("Resetting arm to DOWN position...");
-		armMotor.rotate(-90);
+		robot.getArmMotor().rotate(-90);
+		isArmDown = true;
 	}
 
-	/**
-	 * Dynamically set the robot's Y position by scanning side walls.
-	 * X position is assumed based on start zone (Back wall is a low step, hard to detect).
-	 */
 	private void localize() {
 		System.out.println("Localizing Y-position...");
 		
-		// 1. Look Right
 		rotateBy(-90);
-		try { Thread.sleep(200); } catch (Exception e) {}
-		float distRight = getEV3Distance();
+		sleep(200);
+		float distRight = robot.getEV3Distance();
 		System.out.println("Right: " + distRight + "cm");
 		
-		// 2. Look Left (Turn 180 from Right)
 		rotateBy(180);
-		try { Thread.sleep(200); } catch (Exception e) {}
-		float distLeft = getEV3Distance();
+		sleep(200);
+		float distLeft = robot.getEV3Distance();
 		System.out.println("Left: " + distLeft + "cm");
 		
-		// 3. Return to Front (Turn -90 from Left)
 		rotateBy(-90);
 		
-		float yPos = 57.5f; // Default center
-		float xPos = isBlueTeam ? 20.0f : 123.0f; // Default X (Center of B3/G3)
+		float yPos = GOAL_Y; 
+		float xPos = isBlueTeam ? BLUE_START_X : GREEN_START_X; 
 		float robotRadius = 10.0f;
-		float fieldWidth = 115.0f;
+		float fieldHeight = FIELD_HEIGHT;
 		
-		// Calculate Y based on side walls
-		boolean validRight = distRight < fieldWidth;
-		boolean validLeft = distLeft < fieldWidth;
+		boolean validRight = distRight < fieldHeight;
+		boolean validLeft = distLeft < fieldHeight;
 		
 		if (validRight && validLeft) {
-			// Blue (Face 0): Right is South (y=0). Left is North (y=115).
-			// Green (Face 180): Right is North (y=115). Left is South (y=0).
-			
-			float yFromRight = isBlueTeam ? (distRight + robotRadius) : (fieldWidth - distRight - robotRadius);
-			float yFromLeft = isBlueTeam ? (fieldWidth - distLeft - robotRadius) : (distLeft + robotRadius);
+			float yFromRight = isBlueTeam ? (distRight + robotRadius) : (fieldHeight - distRight - robotRadius);
+			float yFromLeft = isBlueTeam ? (fieldHeight - distLeft - robotRadius) : (distLeft + robotRadius);
 			
 			yPos = (yFromRight + yFromLeft) / 2.0f;
 		} else if (validRight) {
-			yPos = isBlueTeam ? (distRight + robotRadius) : (fieldWidth - distRight - robotRadius);
+			yPos = isBlueTeam ? (distRight + robotRadius) : (fieldHeight - distRight - robotRadius);
 		} else if (validLeft) {
-			yPos = isBlueTeam ? (fieldWidth - distLeft - robotRadius) : (distLeft + robotRadius);
+			yPos = isBlueTeam ? (fieldHeight - distLeft - robotRadius) : (distLeft + robotRadius);
 		}
 		
 		float heading = isBlueTeam ? 0.0f : 180.0f;
 		System.out.println("Localized: (" + String.format("%.1f", xPos) + ", " + String.format("%.1f", yPos) + ")");
-		nav.getPoseProvider().setPose(new Pose(xPos, yPos, heading));
+		robot.getNav().getPoseProvider().setPose(new Pose(xPos, yPos, heading));
 	}
 
-	/**
-	 * Cleanup resources
-	 */
+	private void sleep(long millis) {
+		try { Thread.sleep(millis); } catch (Exception e) {}
+	}
+
+	private ArrayList<Line> getBoundaryLines() {
+		ArrayList<Line> lines = new ArrayList<>();
+		lines.add(new Line(0.0f, 0.0f, FIELD_WIDTH, 0.0f));
+		lines.add(new Line(0.0f, 0.0f, 0.0f, FIELD_HEIGHT));
+		lines.add(new Line(0.0f, FIELD_HEIGHT, FIELD_WIDTH, FIELD_HEIGHT));
+		lines.add(new Line(FIELD_WIDTH, FIELD_HEIGHT, FIELD_WIDTH, 0.0f));
+		return lines;
+	}
+
+	private LineMap createLineMap(ArrayList<Line> lines) {
+		Line[] lineArr = lines.toArray(new Line[lines.size()]);
+		return new LineMap(lineArr, new Rectangle(0.0f, 0.0f, FIELD_WIDTH, FIELD_HEIGHT));
+	}
+
 	private void cleanup() {
-		if (ev3UltrasonicSensor != null) {
-			ev3UltrasonicSensor.close();
-		}
-		if (nxtUltrasonicSensor != null) {
-			nxtUltrasonicSensor.close();
-		}
-		if (gyroSensor != null) {
-			gyroSensor.close();
-		}
-		if (irSensor != null) {
-			irSensor.close();
-		}
-		if (armMotor != null) {
-			armMotor.close();
-		}
-		if (leftMotor != null) {
-			leftMotor.close();
-		}
-		if (rightMotor != null) {
-			rightMotor.close();
-		}
+		robot.stopThreads();
+		robot.close();
 		System.out.println("Sensors closed.");
 	}
 }
