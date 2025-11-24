@@ -51,7 +51,7 @@ public class Project2 {
 	private static final float OBSTACLE_DISTANCE = 20.0f; // cm - distance to detect obstacles (high sensor)
 	private static final float BALL_DETECTION_DISTANCE = 30.0f; // cm - distance to ball (low sensor) - increased from 15
 	private static final float SCAN_ANGLE_STEP = 15.0f; // degrees to rotate during scan
-	private static final float OBSTACLE_PADDING = 10.0f; // cm - buffer around obstacles
+	private static final float OBSTACLE_PADDING = 35.0f; // cm - increased to account for robot radius + obstacle radius
 	
 	public Project2() {
 		// Initialize sensors - matching Client.java setup
@@ -121,6 +121,7 @@ public class Project2 {
 	private static final Waypoint GREEN_GOAL = new Waypoint(128.0f, 57.5f);
 	
 	private boolean isBlueTeam = true; // Default to Blue team
+	private boolean isAttacker = true; // Default to Attacker
 
 	public static void main(String[] args) {
 		Project2 robot = new Project2();
@@ -130,46 +131,38 @@ public class Project2 {
 	public void run() {
 		try {
 			// 0. Setup and Team Selection
-			selectTeam();
+			selectTeamAndRole();
 			
-			System.out.println("Ready to Start!");
-			System.out.println("Press ENTER to GO");
-			Button.ENTER.waitForPress();
+			// Reset arm at the beginning
+			resetArm();
 			
-			// Phase 1: Scan
-			Waypoint ballLocation = scanEnvironmentAndFindBall();
+			long gameEndTime = System.currentTimeMillis() + 5 * 60 * 1000; // 5 minutes
 			
-			if (ballLocation == null) {
-				System.out.println("Ball not found! Try repositioning.");
-				return;
+			while (System.currentTimeMillis() < gameEndTime) {
+				System.out.println("--- NEW CYCLE ---");
+				System.out.println("Waiting for Start Signal (ENTER)...");
+				Button.ENTER.waitForPress();
+				
+				if (isAttacker) {
+					runOffense();
+				} else {
+					runDefense();
+				}
+				
+				System.out.println("Cycle Ended. Press ESC to exit game, or loop continues.");
+				if (Button.ESCAPE.isDown()) {
+					break;
+				}
 			}
 			
-			System.out.println("Ball found at: (" + ballLocation.x + ", " + ballLocation.y + ")");
+			System.out.println("Game Over!");
 			
-			// Phase 2: Update map with detected obstacles
-			System.out.println("Updating map with " + (obstacleLines.size()/4) + " obstacles...");
-			updateMapWithObstacles();
-			
-			// Phase 3: Plan path and navigate to the ball
-			System.out.println("Planning path to ball...");
-			boolean reachedBall = navigateWithPathPlanning(ballLocation, true);
-			
-			if (reachedBall) {
-				// Phase 4: Capture Ball
-				captureBall();
-				
-				// Phase 5: Deliver to Goal
-				Waypoint goal = isBlueTeam ? GREEN_GOAL : BLUE_GOAL;
-				System.out.println("Delivering to " + (isBlueTeam ? "GREEN" : "BLUE") + " goal...");
-				deliverBallToGoal(goal);
-				
-				// Phase 6: Release
-				releaseBall();
-				System.out.println("GOAL SCORED!");
+		} catch (RuntimeException e) {
+			if (e.getMessage().equals("Game aborted by user")) {
+				System.out.println("Game aborted by user (ESCAPE pressed).");
+			} else {
+				e.printStackTrace();
 			}
-			
-			System.out.println("Mission complete!");
-			
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
@@ -177,7 +170,13 @@ public class Project2 {
 		}
 	}
 	
-	private void selectTeam() {
+	private void checkEscape() {
+		if (Button.ESCAPE.isDown()) {
+			throw new RuntimeException("Game aborted by user");
+		}
+	}
+	
+	private void selectTeamAndRole() {
 		System.out.println("Select Team:");
 		System.out.println("UP: Blue Team");
 		System.out.println("DOWN: Green Team");
@@ -186,13 +185,122 @@ public class Project2 {
 		if (button == Button.ID_DOWN) {
 			isBlueTeam = false;
 			System.out.println("Team: GREEN");
-			System.out.println("Target: BLUE Goal");
 		} else {
 			isBlueTeam = true;
 			System.out.println("Team: BLUE");
-			System.out.println("Target: GREEN Goal");
 		}
-		try { Thread.sleep(1000); } catch (Exception e) {}
+		
+		try { Thread.sleep(500); } catch (Exception e) {}
+		
+		System.out.println("Select Role:");
+		System.out.println("UP: Attacker");
+		System.out.println("DOWN: Defender");
+		
+		button = Button.waitForAnyPress();
+		if (button == Button.ID_DOWN) {
+			isAttacker = false;
+			System.out.println("Role: DEFENDER");
+		} else {
+			isAttacker = true;
+			System.out.println("Role: ATTACKER");
+		}
+		
+		try { Thread.sleep(500); } catch (Exception e) {}
+	}
+	
+	private void runOffense() {
+		System.out.println("OFFENSE STATE");
+		
+		// Phase 1: Scan
+		Waypoint ballLocation = scanEnvironmentAndFindBall();
+		
+		if (ballLocation == null) {
+			System.out.println("Ball not found! Resetting...");
+			return;
+		}
+		
+		System.out.println("Ball found at: (" + ballLocation.x + ", " + ballLocation.y + ")");
+		
+		// Phase 2: Update map with detected obstacles
+		updateMapWithObstacles();
+		
+		// Phase 3: Plan path and navigate to the ball
+		System.out.println("Planning path to ball...");
+		boolean reachedBall = navigateWithPathPlanning(ballLocation, true);
+		
+		if (reachedBall) {
+			// Phase 4: Capture Ball
+			captureBall();
+			
+			// Phase 5: Deliver to Goal
+			Waypoint goal = isBlueTeam ? GREEN_GOAL : BLUE_GOAL;
+			System.out.println("Delivering to " + (isBlueTeam ? "GREEN" : "BLUE") + " goal...");
+			boolean delivered = deliverBallToGoal(goal);
+			
+			if (delivered) {
+				// Phase 6: Release
+				releaseBall();
+				
+				// Phase 7: Celebrate (3 seconds)
+				celebrateGoal();
+				
+				System.out.println("GOAL SCORED! Waiting for Ending Signal (ENTER) to reset...");
+			} else {
+				System.out.println("FAILED to deliver ball. Resetting...");
+				lejos.hardware.Sound.buzz();
+			}
+			
+			// Reset arm for next round
+			resetArm();
+			
+			if (delivered) {
+				Button.ENTER.waitForPress();
+			}
+		}
+	}
+	
+	private void runDefense() {
+		System.out.println("DEFENSE STATE");
+		System.out.println("Waiting 3 seconds...");
+		try { Thread.sleep(3000); } catch (Exception e) {}
+		
+		// Defense Loop - break on button press
+		while (!Button.ENTER.isDown()) {
+			checkEscape();
+			// Scan for ball
+			Waypoint ballLocation = scanEnvironmentAndFindBall();
+			
+			if (ballLocation != null) {
+				// Check if ball is in safe zone to go to (not in back zones)
+				// Assuming back zones are x < 10 or x > 133
+				if (ballLocation.x > 10 && ballLocation.x < 133) {
+					System.out.println("Defending! Going to ball...");
+					navigateWithPathPlanning(ballLocation, true); // Go to ball
+					
+					// Kick/Push
+					System.out.println("Kicking ball away!");
+					pilot.setLinearSpeed(20);
+					pilot.travel(10); // Push
+					pilot.travel(-10); // Back off
+					pilot.rotate(45); // Turn away
+				} else {
+					System.out.println("Ball in restricted zone. Holding position.");
+				}
+			} else {
+				System.out.println("Ball not found. Scanning again...");
+			}
+			
+			// Check for manual end of cycle
+			if (Button.ENTER.isDown()) break;
+		}
+	}
+	
+	private void celebrateGoal() {
+		System.out.println("Celebrating Goal!");
+		for (int i = 0; i < 3; i++) {
+			lejos.hardware.Sound.beep();
+			try { Thread.sleep(1000); } catch (Exception e) {}
+		}
 	}
 
 	/**
@@ -219,6 +327,7 @@ public class Project2 {
 		
 		// Step-by-step rotation for accuracy
 		for (int step = 0; step < TOTAL_STEPS; step++) {
+			checkEscape();
 			rotateBy(STEP_SIZE);
 			cumulativeAngle += STEP_SIZE;
 			
@@ -291,6 +400,12 @@ public class Project2 {
 						closestBall = new Waypoint(ballX, ballY);
 						System.out.println("  -> Closest ball so far: " + String.format("%.1f", closestDistance) + 
 							" cm at gyro angle " + String.format("%.0f", ballHeading) + " degrees");
+							
+						// If ball is dangerously close, stop scanning to avoid bumping it
+						if (lowDistance < 18.0f) {
+							System.out.println("Ball is very close! Stopping scan to avoid collision.");
+							break;
+						}
 					}
 				}
 			}
@@ -312,6 +427,39 @@ public class Project2 {
 			lejos.hardware.Sound.beep();
 			rotateBy(rotateBack);
 			
+			// Only zone in if the ball is far enough away to avoid hitting it during the wiggle
+			if (closestDistance > 25.0f) {
+				// Zone in on the ball with a fine scan
+				System.out.println("Zoning in on ball (+- 5 degrees)...");
+				rotateBy(-5); // Start 5 degrees to the left
+				
+				float minDistance = Float.MAX_VALUE;
+				float bestAngleOffset = 0;
+				
+				// Scan 10 degrees in 1 degree steps
+				for (int i = 0; i <= 10; i++) {
+					checkEscape();
+					float dist = getNXTDistance();
+					// System.out.println("Fine Scan " + i + ": " + dist);
+					if (dist < minDistance) {
+						minDistance = dist;
+						bestAngleOffset = i;
+					}
+					rotateBy(1); // Move 1 degree right
+					try { Thread.sleep(50); } catch (Exception e) {}
+				}
+				
+				// Rotate back to best angle
+				// We are currently at +5 relative to center (total 10 degrees movement)
+				// We want to go to bestAngleOffset (which is 0..10 relative to start)
+				// So we need to rotate back by (10 - bestAngleOffset)
+				float correction = -(10 - bestAngleOffset);
+				System.out.println("Correction: " + correction + " degrees (Best dist: " + minDistance + ")");
+				rotateBy(correction);
+			} else {
+				System.out.println("Ball is close (" + closestDistance + "cm). Skipping fine scan.");
+			}
+			
 			return closestBall;
 		}
 		
@@ -327,19 +475,64 @@ public class Project2 {
 	 * @return true if navigation completed
 	 */
 	private boolean navigateWithPathPlanning(Waypoint destination, boolean trackBall) {
-		ShortestPathFinder pathPlanner = new ShortestPathFinder(currentMap);
+		int maxRetries = 5;
+		int retries = 0;
 		
-		try {
-			Pose startPose = nav.getPoseProvider().getPose();
-			System.out.println("Current position: (" + String.format("%.1f", startPose.getX()) + ", " + 
-						   String.format("%.1f", startPose.getY()) + ")");
-			System.out.println("Target: (" + String.format("%.1f", destination.x) + ", " + 
-						   String.format("%.1f", destination.y) + ")");
+		while (retries < maxRetries) {
+			ShortestPathFinder pathPlanner = new ShortestPathFinder(currentMap);
 			
-			Path path = pathPlanner.findRoute(startPose, destination);
-			
-			if (path == null || path.isEmpty()) {
-				System.out.println("No path found! Trying direct approach...");
+			try {
+				Pose startPose = nav.getPoseProvider().getPose();
+				System.out.println("Current position: (" + String.format("%.1f", startPose.getX()) + ", " + 
+							   String.format("%.1f", startPose.getY()) + ")");
+				System.out.println("Target: (" + String.format("%.1f", destination.x) + ", " + 
+							   String.format("%.1f", destination.y) + ")");
+				
+				Path path = pathPlanner.findRoute(startPose, destination);
+				
+				if (path == null || path.isEmpty()) {
+					System.out.println("No path found! Trying direct approach...");
+					if (trackBall) {
+						navigateDirectToBall(destination);
+					} else {
+						navigateToWaypoint(destination);
+					}
+					return true;
+				}
+				
+				System.out.println("Path found with " + path.size() + " waypoints");
+				
+				boolean pathBlocked = false;
+				
+				// Follow the path waypoint by waypoint
+				for (int i = 0; i < path.size(); i++) {
+					checkEscape();
+					Waypoint wp = path.get(i);
+					System.out.println("\nWaypoint " + (i+1) + "/" + path.size() + ": (" + 
+								   String.format("%.1f", wp.x) + ", " + String.format("%.1f", wp.y) + ")");
+					
+					// Navigate to this waypoint
+					if (i < path.size() - 1 || !trackBall) {
+						// Intermediate waypoint OR final waypoint if not tracking ball - go directly
+						if (!navigateToWaypoint(wp)) {
+							System.out.println("Path blocked! Re-planning...");
+							pathBlocked = true;
+							break; // Break for loop to re-plan
+						}
+					} else {
+						// Final waypoint AND tracking ball - use ball tracking
+						navigateDirectToBall(wp);
+					}
+				}
+				
+				if (!pathBlocked) {
+					return true; // Success
+				}
+				
+				retries++;
+				
+			} catch (DestinationUnreachableException e) {
+				System.out.println("Destination unreachable! Trying direct approach...");
 				if (trackBall) {
 					navigateDirectToBall(destination);
 				} else {
@@ -347,41 +540,17 @@ public class Project2 {
 				}
 				return true;
 			}
-			
-			System.out.println("Path found with " + path.size() + " waypoints");
-			
-			// Follow the path waypoint by waypoint
-			for (int i = 0; i < path.size(); i++) {
-				Waypoint wp = path.get(i);
-				System.out.println("\nWaypoint " + (i+1) + "/" + path.size() + ": (" + 
-							   String.format("%.1f", wp.x) + ", " + String.format("%.1f", wp.y) + ")");
-				
-				// Navigate to this waypoint
-				if (i < path.size() - 1 || !trackBall) {
-					// Intermediate waypoint OR final waypoint if not tracking ball - go directly
-					navigateToWaypoint(wp);
-				} else {
-					// Final waypoint AND tracking ball - use ball tracking
-					navigateDirectToBall(wp);
-				}
-			}
-			return true;
-			
-		} catch (DestinationUnreachableException e) {
-			System.out.println("Destination unreachable! Trying direct approach...");
-			if (trackBall) {
-				navigateDirectToBall(destination);
-			} else {
-				navigateToWaypoint(destination);
-			}
-			return true;
 		}
+		
+		System.out.println("Failed to reach destination after " + maxRetries + " retries.");
+		return false;
 	}
 	
 	/**
-	 * Navigate to a waypoint without ball tracking
+	 * Navigate to a waypoint without ball tracking, with dynamic obstacle avoidance
+	 * @return true if reached, false if obstacle detected
 	 */
-	private void navigateToWaypoint(Waypoint wp) {
+	private boolean navigateToWaypoint(Waypoint wp) {
 		Pose currentPose = nav.getPoseProvider().getPose();
 		float dx = wp.x - currentPose.getX();
 		float dy = wp.y - currentPose.getY();
@@ -401,9 +570,51 @@ public class Project2 {
 			rotateBy(turnAngle);
 		}
 		
-		// Travel to waypoint
-		pilot.travel(distance);
+		// Travel to waypoint with monitoring
+		pilot.forward();
+		
+		float startX = currentPose.getX();
+		float startY = currentPose.getY();
+		boolean obstacleDetected = false;
+		
+		while (pilot.isMoving()) {
+			checkEscape();
+			// Check for obstacles
+			float highDistance = getEV3Distance();
+			if (highDistance < OBSTACLE_DISTANCE && highDistance > 0) {
+				pilot.stop();
+				System.out.println("Obstacle detected during movement! Distance: " + highDistance);
+				
+				// Add obstacle
+				Pose pose = nav.getPoseProvider().getPose();
+				float obstacleX = pose.getX() + highDistance * (float)Math.cos(Math.toRadians(pose.getHeading()));
+				float obstacleY = pose.getY() + highDistance * (float)Math.sin(Math.toRadians(pose.getHeading()));
+				addObstacleToMap(obstacleX, obstacleY);
+				updateMapWithObstacles();
+				
+				// Back up slightly to avoid getting stuck on the obstacle
+				System.out.println("Backing up slightly...");
+				pilot.travel(-5);
+				
+				obstacleDetected = true;
+				break;
+			}
+			
+			// Check if reached
+			Pose p = nav.getPoseProvider().getPose();
+			float distTraveled = (float)Math.sqrt(Math.pow(p.getX()-startX, 2) + Math.pow(p.getY()-startY, 2));
+			if (distTraveled >= distance) {
+				pilot.stop();
+				break;
+			}
+			
+			try { Thread.sleep(50); } catch (Exception e) {}
+		}
+		
+		if (obstacleDetected) return false;
+		
 		System.out.println("Waypoint reached");
+		return true;
 	}
 	
 	/**
@@ -440,6 +651,7 @@ public class Project2 {
 		
 		// Move toward ball with continuous tracking
 		while (pilot.isMoving()) {
+			checkEscape();
 			cycleCount++;
 			float lowDistance = getNXTDistance();
 			float highDistance = getEV3Distance();
@@ -470,8 +682,8 @@ public class Project2 {
 					lostBallCount = 0;
 					
 					// Stop if we're close enough to the ball
-					// Increased stop distance to 15cm to prevent pushing the ball
-					if (lowDistance < 15) {
+					// Increased stop distance to 30cm to prevent pushing the ball
+					if (lowDistance < 30) {
 						pilot.stop();
 						System.out.println("*** REACHED BALL! Stopping at " + String.format("%.1f", lowDistance) + " cm ***");
 						break;
@@ -695,14 +907,15 @@ public class Project2 {
 		boolean armLifted = false;
 		
 		while (pilot.isMoving()) {
+			checkEscape();
 			int currentTacho = leftMotor.getTachoCount();
 			float distanceTraveled = Math.abs(currentTacho - startTacho) / degreesPerCm;
 			
 			// Check IR Sensor
 			float irDist = getIRDistance();
 			
-			// 1. Start lifting arm when we are ~10cm away (we started at 15, so after 5cm travel)
-			if (!armLifted && distanceTraveled >= 5.0f) {
+			// 1. Start lifting arm when we are ~10cm away (we started at 30, so after 20cm travel)
+			if (!armLifted && distanceTraveled >= 20.0f) {
 				System.out.println("Lifting arm...");
 				// Rotate arm to lift (adjust angle as needed, assuming 90 degrees lifts it)
 				armMotor.rotate(90, true); // Async return
@@ -717,9 +930,9 @@ public class Project2 {
 				break;
 			}
 			
-			// Safety: Stop if we traveled the requested ~10cm (plus small buffer) without IR detection
-			if (distanceTraveled > 12.0f) { 
-				System.out.println("IR not detected. Stopping at max distance (12cm).");
+			// Safety: Stop if we traveled the requested ~30cm (plus small buffer) without IR detection
+			if (distanceTraveled > 35.0f) { 
+				System.out.println("IR not detected. Stopping at max distance (35cm).");
 				break;
 			}
 			
@@ -731,14 +944,18 @@ public class Project2 {
 		if (!armLifted) {
 			armMotor.rotate(90, false);
 		}
+		
+		// Lower arm to trap the ball underneath
+		System.out.println("Trapping ball (lowering arm)...");
+		armMotor.rotate(-90);
 	}
 
 	/**
 	 * Navigate to the goal area
 	 */
-	private void deliverBallToGoal(Waypoint goal) {
+	private boolean deliverBallToGoal(Waypoint goal) {
 		// Reuse path planning to get to the goal
-		navigateWithPathPlanning(goal, false);
+		return navigateWithPathPlanning(goal, false);
 	}
 
 	/**
@@ -746,12 +963,9 @@ public class Project2 {
 	 */
 	private void releaseBall() {
 		System.out.println("Releasing ball...");
-		// Lower the arm to release
-		armMotor.rotate(-90);
-		
-		// Back up
-		pilot.setLinearSpeed(20);
-		pilot.travel(-20); // Back up 20cm
+		// Lift the arm to release/place the ball
+		armMotor.rotate(90);
+		// Robot sits on the goal (no backup)
 	}
 	
 	private float getIRDistance() {
@@ -761,6 +975,14 @@ public class Project2 {
 		return sample[0];
 	}
 	
+	/**
+	 * Reset arm to down position
+	 */
+	private void resetArm() {
+		System.out.println("Resetting arm to DOWN position...");
+		armMotor.rotate(-90);
+	}
+
 	/**
 	 * Cleanup resources
 	 */
