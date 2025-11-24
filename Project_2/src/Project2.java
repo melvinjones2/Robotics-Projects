@@ -122,6 +122,8 @@ public class Project2 {
 	
 	private boolean isBlueTeam = true; // Default to Blue team
 	private boolean isAttacker = true; // Default to Attacker
+	
+	private Waypoint detectedOpponent = null; // Track opponent position for defense
 
 	public static void main(String[] args) {
 		Project2 robot = new Project2();
@@ -132,6 +134,9 @@ public class Project2 {
 		try {
 			// 0. Setup and Team Selection
 			selectTeamAndRole();
+			
+			// Dynamic Localization
+			localize();
 			
 			// Reset arm at the beginning
 			resetArm();
@@ -205,6 +210,19 @@ public class Project2 {
 			System.out.println("Role: ATTACKER");
 		}
 		
+		// Set initial pose based on team
+		// Map is 143cm wide. Center y is 57.5cm.
+		// B3 is approx x=20. G3 is approx x=123.
+		if (isBlueTeam) {
+			// Blue starts on left (B3), facing right (0 degrees)
+			nav.getPoseProvider().setPose(new Pose(20.0f, 57.5f, 0.0f));
+			System.out.println("Start Pose: (20, 57.5, 0°)");
+		} else {
+			// Green starts on right (G3), facing left (180 degrees)
+			nav.getPoseProvider().setPose(new Pose(123.0f, 57.5f, 180.0f));
+			System.out.println("Start Pose: (123, 57.5, 180°)");
+		}
+		
 		try { Thread.sleep(500); } catch (Exception e) {}
 	}
 	
@@ -267,12 +285,13 @@ public class Project2 {
 		// Defense Loop - break on button press
 		while (!Button.ENTER.isDown()) {
 			checkEscape();
-			// Scan for ball
-			Waypoint ballLocation = scanEnvironmentAndFindBall();
+			
+			// Scan for threats (Ball and Opponent)
+			Waypoint ballLocation = scanForDefense();
 			
 			if (ballLocation != null) {
+				// Priority 1: Ball found - Kick it!
 				// Check if ball is in safe zone to go to (not in back zones)
-				// Assuming back zones are x < 10 or x > 133
 				if (ballLocation.x > 10 && ballLocation.x < 133) {
 					System.out.println("Defending! Going to ball...");
 					navigateWithPathPlanning(ballLocation, true); // Go to ball
@@ -280,14 +299,18 @@ public class Project2 {
 					// Kick/Push
 					System.out.println("Kicking ball away!");
 					pilot.setLinearSpeed(20);
-					pilot.travel(10); // Push
-					pilot.travel(-10); // Back off
+					pilot.travel(15); // Push
+					pilot.travel(-15); // Back off
 					pilot.rotate(45); // Turn away
 				} else {
 					System.out.println("Ball in restricted zone. Holding position.");
 				}
+			} else if (detectedOpponent != null) {
+				// Priority 2: Opponent found - Intercept!
+				System.out.println("Opponent detected at (" + (int)detectedOpponent.x + ", " + (int)detectedOpponent.y + ")");
+				interceptOpponent(detectedOpponent);
 			} else {
-				System.out.println("Ball not found. Scanning again...");
+				System.out.println("No threats found. Scanning again...");
 			}
 			
 			// Check for manual end of cycle
@@ -295,6 +318,105 @@ public class Project2 {
 		}
 	}
 	
+	/**
+	 * Move towards the opponent to block them, but stop safely
+	 */
+	private void interceptOpponent(Waypoint opponent) {
+		System.out.println("Intercepting opponent...");
+		
+		// Calculate distance to opponent
+		Pose currentPose = nav.getPoseProvider().getPose();
+		float dx = opponent.x - currentPose.getX();
+		float dy = opponent.y - currentPose.getY();
+		float distance = (float)Math.sqrt(dx*dx + dy*dy);
+		
+		// Turn to face opponent
+		float targetAngle = (float)Math.toDegrees(Math.atan2(dy, dx));
+		float currentHeading = currentPose.getHeading();
+		float turnAngle = targetAngle - currentHeading;
+		while (turnAngle > 180) turnAngle -= 360;
+		while (turnAngle < -180) turnAngle += 360;
+		rotateBy(turnAngle);
+		
+		// Drive towards them but stop 25cm away to avoid "hard contact"
+		float travelDist = distance - 25.0f;
+		
+		if (travelDist > 5) {
+			System.out.println("Closing distance: " + travelDist + "cm");
+			pilot.travel(travelDist);
+			
+			// Intimidate / Block
+			lejos.hardware.Sound.buzz();
+		} else {
+			System.out.println("Already close to opponent. Holding ground.");
+		}
+	}
+	
+	/**
+	 * Specialized scan for Defense: Looks for Ball AND Opponent
+	 * Returns Ball Waypoint if found (priority), otherwise null.
+	 * Sets 'detectedOpponent' field if opponent is found.
+	 */
+	private Waypoint scanForDefense() {
+		System.out.println("Scanning for threats (Ball/Opponent)...");
+		detectedOpponent = null;
+		Waypoint closestBall = null;
+		float closestBallDist = Float.MAX_VALUE;
+		float closestOpponentDist = Float.MAX_VALUE;
+		
+		if (gyroSensor != null) gyroSensor.reset();
+		float startAngle = getGyroAngle();
+		float cumulativeAngle = 0;
+		
+		// Faster scan for defense (20 degree steps)
+		for (int step = 0; step < 18; step++) {
+			checkEscape();
+			rotateBy(20);
+			cumulativeAngle += 20;
+			try { Thread.sleep(100); } catch (Exception e) {}
+			
+			float currentAngle = getGyroAngle();
+			float lowDistance = getNXTDistance(); // Ball
+			float highDistance = getEV3Distance(); // Opponent/Wall
+			
+			Pose pose = nav.getPoseProvider().getPose();
+			float angleOffset = cumulativeAngle;
+			float headingRad = (float)Math.toRadians(pose.getHeading() + angleOffset);
+			
+			// 1. Check for Ball
+			if (lowDistance > 2 && lowDistance < 200) {
+				if (highDistance > lowDistance + 10 || highDistance > 100) {
+					if (lowDistance < closestBallDist) {
+						closestBallDist = lowDistance;
+						float ballX = pose.getX() + lowDistance * (float)Math.cos(headingRad);
+						float ballY = pose.getY() + lowDistance * (float)Math.sin(headingRad);
+						closestBall = new Waypoint(ballX, ballY);
+					}
+				}
+			}
+			
+			// 2. Check for Opponent (High Sensor)
+			// Look for objects within 100cm that are NOT walls
+			if (highDistance > 5 && highDistance < 100) {
+				float objX = pose.getX() + highDistance * (float)Math.cos(headingRad);
+				float objY = pose.getY() + highDistance * (float)Math.sin(headingRad);
+				
+				// Filter out walls (allow 15cm buffer from boundaries)
+				boolean isWall = (objX < 15 || objX > 128 || objY < 15 || objY > 100);
+				
+				if (!isWall) {
+					// It's an object inside the field!
+					if (highDistance < closestOpponentDist) {
+						closestOpponentDist = highDistance;
+						detectedOpponent = new Waypoint(objX, objY);
+					}
+				}
+			}
+		}
+		
+		return closestBall;
+	}
+
 	private void celebrateGoal() {
 		System.out.println("Celebrating Goal!");
 		for (int i = 0; i < 3; i++) {
@@ -895,8 +1017,12 @@ public class Project2 {
 	private void captureBall() {
 		System.out.println("Capturing ball...");
 		
-		// We are currently ~15cm away from the ball
+		// We are currently ~30cm away from the ball
 		pilot.setLinearSpeed(3); // Very slow for capture
+		
+		// Set arm speed to max to ensure it lifts quickly
+		armMotor.setSpeed(armMotor.getMaxSpeed());
+		
 		pilot.forward();
 		
 		// Use tacho count to estimate distance traveled since pilot.getMovement() might not be available
@@ -914,8 +1040,8 @@ public class Project2 {
 			// Check IR Sensor
 			float irDist = getIRDistance();
 			
-			// 1. Start lifting arm when we are ~10cm away (we started at 30, so after 20cm travel)
-			if (!armLifted && distanceTraveled >= 20.0f) {
+			// 1. Start lifting arm earlier (after 5cm travel instead of 20cm)
+			if (!armLifted && distanceTraveled >= 5.0f) {
 				System.out.println("Lifting arm...");
 				// Rotate arm to lift (adjust angle as needed, assuming 90 degrees lifts it)
 				armMotor.rotate(90, true); // Async return
@@ -981,6 +1107,56 @@ public class Project2 {
 	private void resetArm() {
 		System.out.println("Resetting arm to DOWN position...");
 		armMotor.rotate(-90);
+	}
+
+	/**
+	 * Dynamically set the robot's Y position by scanning side walls.
+	 * X position is assumed based on start zone (Back wall is a low step, hard to detect).
+	 */
+	private void localize() {
+		System.out.println("Localizing Y-position...");
+		
+		// 1. Look Right
+		rotateBy(-90);
+		try { Thread.sleep(200); } catch (Exception e) {}
+		float distRight = getEV3Distance();
+		System.out.println("Right: " + distRight + "cm");
+		
+		// 2. Look Left (Turn 180 from Right)
+		rotateBy(180);
+		try { Thread.sleep(200); } catch (Exception e) {}
+		float distLeft = getEV3Distance();
+		System.out.println("Left: " + distLeft + "cm");
+		
+		// 3. Return to Front (Turn -90 from Left)
+		rotateBy(-90);
+		
+		float yPos = 57.5f; // Default center
+		float xPos = isBlueTeam ? 20.0f : 123.0f; // Default X (Center of B3/G3)
+		float robotRadius = 10.0f;
+		float fieldWidth = 115.0f;
+		
+		// Calculate Y based on side walls
+		boolean validRight = distRight < fieldWidth;
+		boolean validLeft = distLeft < fieldWidth;
+		
+		if (validRight && validLeft) {
+			// Blue (Face 0): Right is South (y=0). Left is North (y=115).
+			// Green (Face 180): Right is North (y=115). Left is South (y=0).
+			
+			float yFromRight = isBlueTeam ? (distRight + robotRadius) : (fieldWidth - distRight - robotRadius);
+			float yFromLeft = isBlueTeam ? (fieldWidth - distLeft - robotRadius) : (distLeft + robotRadius);
+			
+			yPos = (yFromRight + yFromLeft) / 2.0f;
+		} else if (validRight) {
+			yPos = isBlueTeam ? (distRight + robotRadius) : (fieldWidth - distRight - robotRadius);
+		} else if (validLeft) {
+			yPos = isBlueTeam ? (fieldWidth - distLeft - robotRadius) : (distLeft + robotRadius);
+		}
+		
+		float heading = isBlueTeam ? 0.0f : 180.0f;
+		System.out.println("Localized: (" + String.format("%.1f", xPos) + ", " + String.format("%.1f", yPos) + ")");
+		nav.getPoseProvider().setPose(new Pose(xPos, yPos, heading));
 	}
 
 	/**
