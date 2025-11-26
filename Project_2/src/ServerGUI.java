@@ -21,6 +21,7 @@ public class ServerGUI extends JFrame {
     
     // Setup UI
     private JRadioButton rbBlue, rbGreen, rbAttacker, rbDefender;
+    private JCheckBox cbFlipMap;
     
     // Network
     private ServerSocket serverSocket;
@@ -120,6 +121,14 @@ public class ServerGUI extends JFrame {
         setupPanel.add(new JLabel("Role:"));
         setupPanel.add(rbAttacker);
         setupPanel.add(rbDefender);
+        
+        cbFlipMap = new JCheckBox("Flip Map");
+        cbFlipMap.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                if (mapPanel != null) mapPanel.repaint();
+            }
+        });
+        setupPanel.add(cbFlipMap);
         
         topPanel.add(setupPanel);
         add(topPanel, BorderLayout.NORTH);
@@ -528,12 +537,23 @@ public class ServerGUI extends JFrame {
     }
 
     private void runDefense() {
-        log("DEFENSE STATE");
-        // Simple defense: Scan and intercept
+        log("DEFENSE: Patrol Mode");
+        
+        // Define Patrol Line
+        float patrolX = isBlueTeam ? 40.0f : 120.0f;
+        float patrolY_Top = 95.0f;
+        float patrolY_Bottom = 20.0f;
+        
         while (cycleRunning && matchRunning) {
-            // Defense logic here
-            // For now, just wait
-            sleep(1000);
+            log("Patrolling to Top...");
+            driveTo(patrolX, patrolY_Top, 0);
+            sleep(500);
+            
+            if (!cycleRunning) break;
+            
+            log("Patrolling to Bottom...");
+            driveTo(patrolX, patrolY_Bottom, 0);
+            sleep(500);
         }
     }
     
@@ -799,6 +819,9 @@ public class ServerGUI extends JFrame {
         }
         
         private int toScreenY(float worldY, float minY, float maxY, float scale, int yMargin) {
+            if (cbFlipMap != null && cbFlipMap.isSelected()) {
+                 return yMargin + (int)((worldY - minY) * scale);
+            }
             // Flip Y: maxY is at top (yMargin), minY is at bottom
             return yMargin + (int)((maxY - worldY) * scale);
         }
@@ -810,7 +833,12 @@ public class ServerGUI extends JFrame {
         
         private void drawRect(Graphics2D g, float x, float y, float w, float h, float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
             int sx = toScreenX(x, minX, scale, xMargin);
-            int sy = toScreenY(y + h, minY, maxY, scale, yMargin); // Top Left in Screen Coords (since Y is flipped, y+h is top)
+            int sy;
+            if (cbFlipMap != null && cbFlipMap.isSelected()) {
+                sy = toScreenY(y, minY, maxY, scale, yMargin);
+            } else {
+                sy = toScreenY(y + h, minY, maxY, scale, yMargin);
+            }
             int sw = (int)(w * scale);
             int sh = (int)(h * scale);
             g.fillRect(sx, sy, sw, sh);
@@ -818,7 +846,12 @@ public class ServerGUI extends JFrame {
         
         private void drawRectOutline(Graphics2D g, float x, float y, float w, float h, float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
             int sx = toScreenX(x, minX, scale, xMargin);
-            int sy = toScreenY(y + h, minY, maxY, scale, yMargin);
+            int sy;
+            if (cbFlipMap != null && cbFlipMap.isSelected()) {
+                sy = toScreenY(y, minY, maxY, scale, yMargin);
+            } else {
+                sy = toScreenY(y + h, minY, maxY, scale, yMargin);
+            }
             int sw = (int)(w * scale);
             int sh = (int)(h * scale);
             g.drawRect(sx, sy, sw, sh);
@@ -839,5 +872,25 @@ public class ServerGUI extends JFrame {
         }
         
         new Thread(visionService).start();
+    }
+
+    private void driveTo(float x, float y, float stopDistance) {
+        float dx = x - currentPose.getX();
+        float dy = y - currentPose.getY();
+        float distance = (float)Math.sqrt(dx*dx + dy*dy);
+        float targetAngle = (float)Math.toDegrees(Math.atan2(dy, dx));
+        
+        float turn = targetAngle - currentPose.getHeading();
+        while (turn > 180) turn -= 360;
+        while (turn < -180) turn += 360;
+        
+        sendCommand("ROTATE " + turn);
+        waitForMove();
+        
+        if (distance > stopDistance) {
+            float driveDist = distance - stopDistance;
+            sendCommand("TRAVEL " + driveDist);
+            waitForMove();
+        }
     }
 }

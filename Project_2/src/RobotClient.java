@@ -135,7 +135,7 @@ public class RobotClient {
         // If moving forward and obstacle is close, STOP.
         if (robot.getPilot().isMoving()) {
             float dist = robot.getEV3Distance(); // High sensor for walls
-            if (dist < 20 && dist > 0) {
+            if (dist < 15 && dist > 0) {
                 // Check if we are actually moving forward (not backward or rotating in place)
                 // DifferentialPilot doesn't easily expose "moving forward", but we can assume
                 // if distance is decreasing rapidly... or just be safe.
@@ -148,6 +148,7 @@ public class RobotClient {
                 robot.getPilot().stop();
                 commandQueue.clear(); // Clear pending commands to prevent immediate resume
                 lejos.hardware.Sound.buzz();
+                robot.getPilot().travel(-3);
             }
         }
     }
