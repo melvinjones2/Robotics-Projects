@@ -38,42 +38,33 @@ public class VisionService implements Runnable {
 
     public VisionService(String streamAddress) {
         this.streamUrlString = streamAddress;
-        // Open video stream from URL (e.g. http://192.168.1.100:8080/video)
-        System.out.println("Attempting to connect to IP Camera at: " + streamAddress);
+        System.out.println("Connecting to IP Camera: " + streamAddress);
         
-        // 1. Network Pre-check
+        // Network Check
         try {
             java.net.URL url = new java.net.URL(streamAddress);
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(2000);
             conn.setReadTimeout(2000);
             conn.setRequestMethod("GET");
-            int code = conn.getResponseCode();
-            System.out.println("Network Check: Server returned HTTP " + code + " (This is good!)");
             conn.disconnect();
         } catch (Exception e) {
-            System.out.println("Network Check Failed: Could not reach " + streamAddress);
-            System.out.println("Error: " + e.getMessage());
-            System.out.println("-> Please check if the IP is correct and the phone is on the same Wi-Fi.");
+            System.out.println("Network Check Failed: " + e.getMessage());
         }
 
-        // 2. OpenCV Connection Strategy
-        // Strategy A: Direct Connection
+        // Connection Strategies
         camera = new VideoCapture(streamAddress);
         
         if (!camera.isOpened()) {
-            System.out.println("Strategy A failed. Trying Strategy B (Append .mjpg extension)...");
-            // Strategy B: Append dummy extension to help OpenCV recognize MJPEG
+            // Try appending .mjpg
             String altUrl = streamAddress;
             if (streamAddress.contains("?")) altUrl += "&dummy=param.mjpg";
             else altUrl += "?dummy=param.mjpg";
-            
             camera = new VideoCapture(altUrl);
         }
         
         if (!camera.isOpened()) {
-            System.out.println("Strategy B failed. Trying Strategy C (DroidCam /mjpegfeed)...");
-            // Strategy C: Try /mjpegfeed if user used /video
+            // Try /mjpegfeed
             if (streamAddress.contains("/video")) {
                 String altUrl = streamAddress.replace("/video", "/mjpegfeed?640x480");
                 camera = new VideoCapture(altUrl);
@@ -81,7 +72,7 @@ public class VisionService implements Runnable {
         }
         
         if (!camera.isOpened()) {
-            System.out.println("All OpenCV Strategies failed. Switching to Java MJPEG Streamer (Fallback).");
+            System.out.println("OpenCV failed. Switching to Java MJPEG Streamer.");
             useJavaNetworkStream = true;
         }
     }
@@ -121,19 +112,17 @@ public class VisionService implements Runnable {
     private void runJavaStream() {
         System.out.println("Starting Java MJPEG Streamer...");
         
-        // Try the modified URL first, then the original
         String[] urlsToTry = new String[2];
         String modifiedUrl = streamUrlString;
         if (modifiedUrl.contains("/video")) {
             modifiedUrl = modifiedUrl.replace("/video", "/mjpegfeed?640x480");
         }
         urlsToTry[0] = modifiedUrl;
-        urlsToTry[1] = streamUrlString; // Fallback to original
+        urlsToTry[1] = streamUrlString;
 
         for (int i = 0; i < urlsToTry.length; i++) {
             String targetUrl = urlsToTry[i];
             if (targetUrl == null) continue;
-            // Skip duplicate if modified is same as original (e.g. user already provided mjpegfeed)
             if (i == 1 && targetUrl.equals(urlsToTry[0])) continue;
 
             System.out.println("Java Stream: Connecting to " + targetUrl);
@@ -145,18 +134,17 @@ public class VisionService implements Runnable {
                 URL url = new URL(targetUrl);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
-                conn.setReadTimeout(10000); // 10s read timeout
+                conn.setReadTimeout(10000);
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0");
                 
                 try {
                     int responseCode = conn.getResponseCode();
-                    System.out.println("Java Stream: Response Code: " + responseCode);
                     if (responseCode != 200) {
                         System.out.println("Java Stream: Failed with code " + responseCode);
                         continue; 
                     }
                 } catch (Exception e) {
-                    System.out.println("Java Stream: Could not get response code, trying to read anyway...");
+                    // Ignore and try to read
                 }
 
                 in = new BufferedInputStream(conn.getInputStream());
@@ -168,10 +156,7 @@ public class VisionService implements Runnable {
                 
                 while (running) {
                     cur = in.read();
-                    if (cur == -1) {
-                        System.out.println("Java Stream: End of Stream (Server closed connection)");
-                        break;
-                    }
+                    if (cur == -1) break;
                     
                     if (recording) {
                         jpgBuffer.write(cur);
@@ -183,11 +168,8 @@ public class VisionService implements Runnable {
                                 if (bi != null) {
                                     processFrame(bufferedImageToMat(bi));
                                     framesDecoded++;
-                                    if (framesDecoded == 1) System.out.println("Java Stream: First frame decoded successfully!");
                                 }
-                            } catch (Exception e) {
-                                // System.out.println("Frame Decode Error: " + e.getMessage());
-                            }
+                            } catch (Exception e) {}
                             jpgBuffer.reset();
                         }
                     } else {
@@ -200,30 +182,22 @@ public class VisionService implements Runnable {
                     prev = cur;
                 }
                 
-                // If we decoded frames, we consider this a "good" URL that just disconnected.
-                // If we didn't decode any frames, it's a "bad" URL, so we continue to the next one.
                 if (framesDecoded > 0) {
-                    System.out.println("Java Stream: Stream disconnected after " + framesDecoded + " frames.");
-                    // If user didn't stop it, maybe we should retry the SAME url? 
-                    // For now, let's just break, or maybe loop back to start?
-                    // If we break here, the thread ends.
                     if (running) {
-                         System.out.println("Java Stream: Attempting to reconnect...");
-                         i--; // Retry this same URL
+                         System.out.println("Java Stream: Reconnecting...");
+                         i--; 
                          try { Thread.sleep(1000); } catch (Exception e) {}
                          continue;
                     }
                 }
                 
             } catch (Exception e) {
-                System.out.println("Java Stream Error on " + targetUrl + ": " + e.getMessage());
-                e.printStackTrace();
+                System.out.println("Java Stream Error: " + e.getMessage());
             } finally {
                 try { if (in != null) in.close(); } catch (Exception e) {}
                 try { if (conn != null) conn.disconnect(); } catch (Exception e) {}
             }
         }
-        System.out.println("Java Stream: Connection Closed.");
     }
     
     private Mat bufferedImageToMat(BufferedImage bi) {

@@ -35,7 +35,6 @@ public class RobotController {
     private volatile boolean running = true;
     
     public RobotController() {
-        // Hardware init and threads start explicitly called by main program
     }
     
     public void initHardware() {
@@ -80,7 +79,7 @@ public class RobotController {
     }
     
     public void startThreads() {
-        // 1. Sensor Polling Thread
+        // Sensor Polling Thread
         Thread sensorThread = new Thread(new Runnable() {
             public void run() {
                 SampleProvider ev3Dist = (ev3UltrasonicSensor != null) ? ev3UltrasonicSensor.getDistanceMode() : null;
@@ -126,7 +125,7 @@ public class RobotController {
         sensorThread.setDaemon(true);
         sensorThread.start();
         
-        // 2. Safety/Escape Thread
+        // Safety/Escape Thread
         Thread safetyThread = new Thread(new Runnable() {
             public void run() {
                 while (running) {

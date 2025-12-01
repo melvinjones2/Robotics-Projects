@@ -26,43 +26,41 @@ public class RobotClient {
     public void run() {
         robot = new RobotController();
         robot.initHardware();
-        robot.startThreads(); // Starts sensor polling (Warehouse Thread)
+        robot.startThreads();
         
-        // Connect to Server
         connectToServer();
         
-        // Thread 1: Communication (Sender)
-        Thread senderThread = new Thread(new Runnable() {
+        startSender();
+        startReceiver();
+        startPilot();
+        
+        waitForEscape();
+    }
+    
+    private void startSender() {
+        new Thread(new Runnable() {
             public void run() {
                 while (running && !socket.isClosed()) {
                     try {
-                        // Format: DATA:LOW,HIGH,GYRO,IR,IS_MOVING,X,Y,HEADING
                         Pose pose = robot.getNav().getPoseProvider().getPose();
                         String data = String.format("DATA:%.2f,%.2f,%.2f,%.2f,%b,%.2f,%.2f,%.2f", 
-                            robot.getLowDistance(),
-                            robot.getHighDistance(),
-                            robot.getGyroAngle(),
-                            robot.getIRDistance(),
-                            robot.getPilot().isMoving(),
-                            pose.getX(),
-                            pose.getY(),
-                            pose.getHeading()
+                            robot.getLowDistance(), robot.getHighDistance(), robot.getGyroAngle(),
+                            robot.getIRDistance(), robot.getPilot().isMoving(),
+                            pose.getX(), pose.getY(), pose.getHeading()
                         );
-                        if (out != null) {
-                            out.println(data);
-                        }
-                        Thread.sleep(50); // 20Hz update rate
+                        if (out != null) out.println(data);
+                        Thread.sleep(50);
                     } catch (Exception e) {
                         System.out.println("Sender Error: " + e.getMessage());
                         break;
                     }
                 }
             }
-        });
-        senderThread.start();
-        
-        // Thread 2: Communication (Receiver)
-        Thread receiverThread = new Thread(new Runnable() {
+        }).start();
+    }
+
+    private void startReceiver() {
+        new Thread(new Runnable() {
             public void run() {
                 try {
                     String line;
@@ -74,18 +72,18 @@ public class RobotClient {
                     System.out.println("Receiver Error: " + e.getMessage());
                 }
             }
-        });
-        receiverThread.start();
-        
-        // Thread 3: Pilot Control (Consumer)
-        Thread pilotThread = new Thread(new Runnable() {
+        }).start();
+    }
+
+    private void startPilot() {
+        new Thread(new Runnable() {
             public void run() {
                 controlPilot();
             }
-        });
-        pilotThread.start();
-        
-        // Main thread waits for Escape
+        }).start();
+    }
+
+    private void waitForEscape() {
         while (running) {
             if (Button.ESCAPE.isDown()) {
                 running = false;
@@ -131,22 +129,13 @@ public class RobotClient {
     }
     
     private void checkSafety() {
-        // Asimov's First Law: A robot may not allow harm to come to itself.
-        // If moving forward and obstacle is close, STOP.
+        // Safety Check: If moving forward and obstacle is close, STOP.
         if (robot.getPilot().isMoving()) {
             float dist = robot.getEV3Distance(); // High sensor for walls
             if (dist < 15 && dist > 0) {
-                // Check if we are actually moving forward (not backward or rotating in place)
-                // DifferentialPilot doesn't easily expose "moving forward", but we can assume
-                // if distance is decreasing rapidly... or just be safe.
-                // For now, if close, just stop.
-                
-                // Exception: If we are rotating, we might be fine? 
-                // But if we are too close to a wall, rotation might hit it.
-                
                 System.out.println("SAFETY STOP: Obstacle at " + dist);
                 robot.getPilot().stop();
-                commandQueue.clear(); // Clear pending commands to prevent immediate resume
+                commandQueue.clear(); // Clear pending commands
                 lejos.hardware.Sound.buzz();
                 robot.getPilot().travel(-3);
             }
@@ -197,14 +186,12 @@ public class RobotClient {
             case "ROTATE":
                 if (parts.length > 1) {
                     float angle = Float.parseFloat(parts[1]);
-                    // Non-blocking rotate to allow safety checks and command interrupts
                     robot.getPilot().rotate(angle, true);
                 }
                 break;
             case "TRAVEL":
                 if (parts.length > 1) {
                     float dist = Float.parseFloat(parts[1]);
-                    // Non-blocking travel to allow safety checks and command interrupts
                     robot.getPilot().travel(dist, true);
                 }
                 break;
@@ -224,6 +211,4 @@ public class RobotClient {
                 break;
         }
     }
-    
-    // Removed waitForCompletion() as we are now non-blocking
 }

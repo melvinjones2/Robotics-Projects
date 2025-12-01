@@ -6,8 +6,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
-import org.opencv.core.Core; // OpenCV Import
+import org.opencv.core.Core;
 import org.opencv.core.Point;
 import lejos.robotics.navigation.Pose;
 import lejos.robotics.navigation.Waypoint;
@@ -272,7 +271,6 @@ public class ServerGUI extends JFrame {
         });
         setFocusable(true);
         
-        // Add Mouse Listener for Click-to-Move (Simplified)
         mapPanel.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 if (manualMode) {
@@ -419,7 +417,6 @@ public class ServerGUI extends JFrame {
         btnStartCycle.setEnabled(true);
         btnEndCycle.setEnabled(false);
         sendCommand("STOP");
-        // Logic thread will loop back to wait for start signal
     }
 
     private void toggleManualMode(boolean enabled) {
@@ -518,21 +515,15 @@ public class ServerGUI extends JFrame {
         logicThread.start();
     }
     
-    // --- Simplified Game Logic ---
-    
     private void runOffense() {
         log("OFFENSE: Simple Mode");
         
-        // 1. Find Ball
         if (!searchForBall()) return;
         
-        // 2. Approach Ball (Visual Servoing + US Distance)
         if (!approachBall()) return;
         
-        // 3. Capture Ball
         captureBallSequence();
         
-        // 4. Deliver (Blind navigation to goal coordinates)
         deliverToGoal();
     }
 
@@ -643,18 +634,16 @@ public class ServerGUI extends JFrame {
         
         // 1. Lift Arm
         sendCommand("ARM_UP");
-        // Wait for arm to go up (mechanical time)
         sleep(1000); 
         
         // 2. Drive Over (30cm)
-        // The arm stays UP during this move because we haven't sent ARM_DOWN yet
         sendCommand("TRAVEL 30");
-        waitForMove(); // Now robustly waits for the move to complete
-        
+        waitForMove(); 
+
         // 3. Trap
-        sleep(500); // Brief pause
+        sleep(500);
         sendCommand("ARM_DOWN");
-        sleep(1000); // Wait for arm to lower
+        sleep(1000); 
         
         // 4. Verify
         if (irDist < 18) {
@@ -761,13 +750,51 @@ public class ServerGUI extends JFrame {
     }
 
     private class MapPanel extends JPanel {
+        
+        private class ViewContext {
+            float minX, minY, maxY, scale;
+            int xMargin, yMargin;
+            
+            ViewContext(float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
+                this.minX = minX; this.minY = minY; this.maxY = maxY;
+                this.scale = scale; this.xMargin = xMargin; this.yMargin = yMargin;
+            }
+            
+            int toX(float worldX) {
+                return xMargin + (int)((worldX - minX) * scale);
+            }
+            
+            int toY(float worldY) {
+                if (cbFlipMap != null && cbFlipMap.isSelected()) {
+                     return yMargin + (int)((worldY - minY) * scale);
+                }
+                return yMargin + (int)((maxY - worldY) * scale);
+            }
+            
+            void fillRect(Graphics2D g, float x, float y, float w, float h) {
+                int sx = toX(x);
+                int sy = (cbFlipMap != null && cbFlipMap.isSelected()) ? toY(y) : toY(y + h);
+                g.fillRect(sx, sy, (int)(w * scale), (int)(h * scale));
+            }
+            
+            void drawRect(Graphics2D g, float x, float y, float w, float h) {
+                int sx = toX(x);
+                int sy = (cbFlipMap != null && cbFlipMap.isSelected()) ? toY(y) : toY(y + h);
+                g.drawRect(sx, sy, (int)(w * scale), (int)(h * scale));
+            }
+            
+            void drawLine(Graphics2D g, float x1, float y1, float x2, float y2) {
+                g.drawLine(toX(x1), toY(y1), toX(x2), toY(y2));
+            }
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Calculate Bounds of all objects
+            // Calculate Bounds
             float minX = 0, maxX = FIELD_WIDTH;
             float minY = 0, maxY = FIELD_HEIGHT;
             
@@ -778,31 +805,30 @@ public class ServerGUI extends JFrame {
                 maxY = Math.max(maxY, currentPose.getY());
             }
             
-            // Add padding
+            // Padding
             float padding = 10.0f;
             minX -= padding; maxX += padding;
             minY -= padding; maxY += padding;
             
-            float contentWidth = maxX - minX;
-            float contentHeight = maxY - minY;
+            // Scale & Margin
+            float contentW = maxX - minX;
+            float contentH = maxY - minY;
+            float scale = Math.min(getWidth() / contentW, getHeight() / contentH);
+            int xMargin = (int) ((getWidth() - contentW * scale) / 2);
+            int yMargin = (int) ((getHeight() - contentH * scale) / 2);
 
-            // Calculate Scale to fit content
-            float scale = Math.min(getWidth() / contentWidth, getHeight() / contentHeight);
-            
-            // Calculate Offset to center content
-            int xMargin = (int) ((getWidth() - contentWidth * scale) / 2);
-            int yMargin = (int) ((getHeight() - contentHeight * scale) / 2);
+            ViewContext ctx = new ViewContext(minX, minY, maxY, scale, xMargin, yMargin);
 
-            // Draw Field Boundary
+            // Draw Field
             g2.setColor(Color.LIGHT_GRAY);
-            drawRect(g2, 0, 0, FIELD_WIDTH, FIELD_HEIGHT, minX, minY, maxY, scale, xMargin, yMargin);
+            ctx.fillRect(g2, 0, 0, FIELD_WIDTH, FIELD_HEIGHT);
             g2.setColor(Color.BLACK);
-            drawRectOutline(g2, 0, 0, FIELD_WIDTH, FIELD_HEIGHT, minX, minY, maxY, scale, xMargin, yMargin);
+            ctx.drawRect(g2, 0, 0, FIELD_WIDTH, FIELD_HEIGHT);
 
             // Draw Robot
             if (currentPose != null) {
-                int rx = toScreenX(currentPose.getX(), minX, scale, xMargin);
-                int ry = toScreenY(currentPose.getY(), minY, maxY, scale, yMargin);
+                int rx = ctx.toX(currentPose.getX());
+                int ry = ctx.toY(currentPose.getY());
                 int r = 10;
                 g2.setColor(Color.BLUE);
                 g2.fillOval(rx - r, ry - r, 2 * r, 2 * r);
@@ -810,51 +836,8 @@ public class ServerGUI extends JFrame {
                 float hx = currentPose.getX() + 20 * (float)Math.cos(Math.toRadians(currentPose.getHeading()));
                 float hy = currentPose.getY() + 20 * (float)Math.sin(Math.toRadians(currentPose.getHeading()));
                 
-                drawLine(g2, currentPose.getX(), currentPose.getY(), hx, hy, minX, minY, maxY, scale, xMargin, yMargin);
+                ctx.drawLine(g2, currentPose.getX(), currentPose.getY(), hx, hy);
             }
-        }
-        
-        private int toScreenX(float worldX, float minX, float scale, int xMargin) {
-            return xMargin + (int)((worldX - minX) * scale);
-        }
-        
-        private int toScreenY(float worldY, float minY, float maxY, float scale, int yMargin) {
-            if (cbFlipMap != null && cbFlipMap.isSelected()) {
-                 return yMargin + (int)((worldY - minY) * scale);
-            }
-            // Flip Y: maxY is at top (yMargin), minY is at bottom
-            return yMargin + (int)((maxY - worldY) * scale);
-        }
-        
-        private void drawLine(Graphics2D g, float x1, float y1, float x2, float y2, float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
-            g.drawLine(toScreenX(x1, minX, scale, xMargin), toScreenY(y1, minY, maxY, scale, yMargin),
-                       toScreenX(x2, minX, scale, xMargin), toScreenY(y2, minY, maxY, scale, yMargin));
-        }
-        
-        private void drawRect(Graphics2D g, float x, float y, float w, float h, float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
-            int sx = toScreenX(x, minX, scale, xMargin);
-            int sy;
-            if (cbFlipMap != null && cbFlipMap.isSelected()) {
-                sy = toScreenY(y, minY, maxY, scale, yMargin);
-            } else {
-                sy = toScreenY(y + h, minY, maxY, scale, yMargin);
-            }
-            int sw = (int)(w * scale);
-            int sh = (int)(h * scale);
-            g.fillRect(sx, sy, sw, sh);
-        }
-        
-        private void drawRectOutline(Graphics2D g, float x, float y, float w, float h, float minX, float minY, float maxY, float scale, int xMargin, int yMargin) {
-            int sx = toScreenX(x, minX, scale, xMargin);
-            int sy;
-            if (cbFlipMap != null && cbFlipMap.isSelected()) {
-                sy = toScreenY(y, minY, maxY, scale, yMargin);
-            } else {
-                sy = toScreenY(y + h, minY, maxY, scale, yMargin);
-            }
-            int sw = (int)(w * scale);
-            int sh = (int)(h * scale);
-            g.drawRect(sx, sy, sw, sh);
         }
     }
 
