@@ -47,7 +47,7 @@ This project was a collaborative effort developed for the Intro to Robotics fina
 
 ## 🙏 Acknowledgments
 
-A very special thanks to my partner, Kong ([@kpyang5](https://github.com/kpyang5)). Beyond just collaborating on the code, Kong was an incredible mentor to me throughout this project. He generously shared his practical and academic knowledge in software development, and his dedication and hard work were instrumental to my success—not just in this class, but in building skills I will carry forward in my career. Thank you, Kong!
+A very special thanks to my partner, Kong ([@kpyang5](https://github.com/kpyang5)). Beyond just collaborating on the code, Kong was an incredible mentor to me throughout this project. He generously shared his practical and academic knowledge in software development, and his dedication and hard work were instrumental to my success. His lessons and advice didn't help only in robotics, but in building skills I will carry forward in my career. Thank you, Kong!
 
 ## 📝 Notes
 
