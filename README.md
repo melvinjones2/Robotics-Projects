@@ -10,8 +10,9 @@ This is our code for Project 2. It controls a Lego EV3 robot to play soccer (att
 * **`RobotController.java`**: A helper class to manage the EV3 hardware (motors, sensors).
 
 ## 📼 Videos
-Attack Mode: https://drive.google.com/file/d/1z75UFOY5GrV3nfCqPJqoW9CkBhBydYOw/view?usp=sharing
-Defender Mode and Manual Mode: https://drive.google.com/file/d/1kuu8ucHHT4foApqyziR7IVjUcodlSnh3/view?usp=sharing
+**Attack Mode**: https://drive.google.com/file/d/1z75UFOY5GrV3nfCqPJqoW9CkBhBydYOw/view?usp=sharing
+
+**Defender Mode and Manual Mode**: https://drive.google.com/file/d/1kuu8ucHHT4foApqyziR7IVjUcodlSnh3/view?usp=sharing
 
 ## 🚀 How to Run
 
